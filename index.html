@@ -374,7 +374,10 @@
               }),
             onEachFeature: (feature, layer) => {
               const p = feature.properties || {};
+              // Build auto-updating latest snapshot URL
               let img = p.imagePath;
+              const radarId = p.id;
+              img = `https://corsproxy.io/?http://oktrafficradar.org/hrserver/${radarId}/latest.jpg?t=${Date.now()}`;
               // Use proxy to bypass HTTPS mixed-content blocking
               if (img && img.startsWith('http://')) {
                 img = 'https://corsproxy.io/?' + encodeURIComponent(img);
