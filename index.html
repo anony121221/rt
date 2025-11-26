@@ -267,21 +267,30 @@
                 
                 const img = document.createElement('img');
                 img.className = 'sensor-image';
-                img.src = props.image_url;
                 img.alt = 'Sensor Camera Image';
                 img.title = 'Click to open full size';
+                
+                // Try the latest.jpg URL first
+                img.src = props.image_url;
                 
                 img.onclick = function() {
                     window.open(props.image_url, '_blank');
                 };
                 
                 img.onerror = function() {
-                    imgContainer.innerHTML = `
-                        <div class="error-message">
-                            Image unavailable<br>
-                            <small>URL: ${props.image_url}</small>
-                        </div>
-                    `;
+                    // If latest.jpg fails, try the fallback URL
+                    if (props.image_url_fallback && img.src !== props.image_url_fallback) {
+                        console.log(`Failed to load ${img.src}, trying fallback...`);
+                        img.src = props.image_url_fallback;
+                    } else {
+                        // Both failed, show error
+                        imgContainer.innerHTML = `
+                            <div class="error-message">
+                                Image unavailable<br>
+                                <small>Tried: ${props.image_url}</small>
+                            </div>
+                        `;
+                    }
                 };
                 
                 imgContainer.appendChild(img);
