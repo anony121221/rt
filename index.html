@@ -6,23 +6,24 @@
     <title>Oklahoma Traffic Cameras</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        .popup-content { min-width: 320px; max-width: 420px; }
+        .popup-content { min-width: 340px; max-width: 420px; }
         .popup-title { font-size: 16px; font-weight: bold; margin-bottom: 12px; color: #333; border-bottom: 2px solid #2196F3; padding-bottom: 8px; }
-        .popup-info { margin: 6px 0; color: #666; font-size: 13px; }
-        .video-container { width: 100%; margin: 12px 0; background: #000; border-radius: 6px; overflow: hidden; position: relative; min-height: 240px; display: flex; align-items: center; justify-content: center; }
-        video { width: 100%; height: 240px; display: block; }
-        .sensor-image-container { width: 100%; margin: 12px 0; background: #f5f5f5; border-radius: 6px; overflow: hidden; text-align: center; }
-        .sensor-image { width: 100%; display: block; cursor: pointer; }
-        .error-message { color: #d32f2f; font-size: 12px; padding: 10px; background: #ffebee; border-radius: 4px; margin: 10px 0; }
-        .loading { text-align: center; padding: 20px; color: #fff; font-style: italic; }
-        .view-link { display: inline-block; margin-top: 10px; padding: 8px 16px; background: #2196F3; color: white; text-decoration: none; border-radius: 4px; font-size: 13px; }
-        .view-link:hover { background: #1976D2; }
-        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 4px; font-size: 12px; }
+        .stream-container { width: 100%; height: 240px; margin: 12px 0; background: #000; border-radius: 6px; overflow: hidden; }
+        .stream-iframe { width: 100%; height: 100%; border: none; }
+        .sensor-image-container { width: 100%; margin: 12px 0; background: #f5f5f5; border-radius: 6px; overflow: hidden; text-align: center; min-height: 240px; display: flex; align-items: center; justify-content: center; }
+        .sensor-image { max-width: 100%; max-height: 300px; display: block; margin: 0 auto; cursor: pointer; }
+        .info-box { padding: 10px; background: #f5f5f5; border-radius: 4px; margin: 8px 0; font-size: 13px; }
+        .info-row { margin: 4px 0; }
+        .info-label { font-weight: bold; color: #555; }
+        .button-link { display: inline-block; margin-top: 10px; padding: 8px 16px; background: #2196F3; color: white; text-decoration: none; border-radius: 4px; font-size: 13px; cursor: pointer; border: none; }
+        .button-link:hover { background: #1976D2; }
+        .message { padding: 12px; margin: 8px 0; border-radius: 4px; font-size: 13px; }
+        .info-message { background: #e3f2fd; color: #1565c0; border-left: 3px solid #2196F3; }
+        .warning-message { background: #fff3e0; color: #e65100; border-left: 3px solid #ff9800; }
     </style>
 </head>
 <body>
@@ -38,70 +39,17 @@
 
         const streamIcon = L.divIcon({
             className: 'custom-icon',
-            html: '<div style="background: #2196F3; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); font-size: 16px;">📹</div>',
-            iconSize: [28, 28],
-            iconAnchor: [14, 14]
+            html: '<div style="background: #2196F3; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); font-size: 16px;">📹</div>',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
         });
 
         const sensorIcon = L.divIcon({
             className: 'custom-icon',
-            html: '<div style="background: #FF9800; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); font-size: 16px;">📷</div>',
-            iconSize: [28, 28],
-            iconAnchor: [14, 14]
+            html: '<div style="background: #FF9800; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); font-size: 16px;">📷</div>',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
         });
-
-        function createVideoPlayer(streamUrl) {
-            const videoId = 'video-' + Math.random().toString(36).substr(2, 9);
-            const container = document.createElement('div');
-            container.className = 'video-container';
-            container.innerHTML = `
-                <video id="${videoId}" controls playsinline crossorigin="anonymous"></video>
-                <div class="loading">Loading stream...</div>
-            `;
-            
-            setTimeout(() => {
-                const video = document.getElementById(videoId);
-                const loading = container.querySelector('.loading');
-                
-                if (!video) {
-                    if (loading) loading.innerHTML = '<div class="error-message">Video element not found</div>';
-                    return;
-                }
-                
-                if (Hls.isSupported()) {
-                    const hls = new Hls({
-                        enableWorker: true,
-                        xhrSetup: function(xhr, url) {
-                            xhr.withCredentials = false;
-                        }
-                    });
-                    
-                    hls.loadSource(streamUrl);
-                    hls.attachMedia(video);
-                    
-                    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-                        if (loading) loading.style.display = 'none';
-                        video.play().catch(e => console.log('Autoplay prevented'));
-                    });
-                    
-                    hls.on(Hls.Events.ERROR, (event, data) => {
-                        if (data.fatal && loading) {
-                            loading.innerHTML = '<div class="error-message">Stream temporarily unavailable</div>';
-                        }
-                    });
-                } else if (video && video.canPlayType && video.canPlayType('application/vnd.apple.mpegurl')) {
-                    video.src = streamUrl;
-                    video.addEventListener('loadedmetadata', () => {
-                        if (loading) loading.style.display = 'none';
-                        video.play().catch(e => console.log('Autoplay prevented'));
-                    });
-                } else {
-                    if (loading) loading.innerHTML = '<div class="error-message">Video not supported</div>';
-                }
-            }, 100);
-            
-            return container;
-        }
 
         function createStreamPopup(feature) {
             const props = feature.properties;
@@ -114,13 +62,56 @@
             container.appendChild(title);
 
             if (props.stream_url) {
-                container.appendChild(createVideoPlayer(props.stream_url));
+                // Create a simple HTML page for the iframe
+                const iframeContent = `
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+                        <style>
+                            body { margin: 0; background: #000; }
+                            video { width: 100%; height: 100%; }
+                            .error { color: white; padding: 20px; text-align: center; }
+                        </style>
+                    </head>
+                    <body>
+                        <video id="video" controls autoplay muted></video>
+                        <div id="error" class="error" style="display:none;">Stream loading...</div>
+                        <script>
+                            const video = document.getElementById('video');
+                            const errorDiv = document.getElementById('error');
+                            const streamUrl = '${props.stream_url}';
+                            
+                            if (Hls.isSupported()) {
+                                const hls = new Hls();
+                                hls.loadSource(streamUrl);
+                                hls.attachMedia(video);
+                                hls.on(Hls.Events.ERROR, function(event, data) {
+                                    errorDiv.style.display = 'block';
+                                    errorDiv.textContent = 'Stream unavailable';
+                                });
+                            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                                video.src = streamUrl;
+                            }
+                        </script>
+                    </body>
+                    </html>
+                `;
+                
+                const streamDiv = document.createElement('div');
+                streamDiv.className = 'stream-container';
+                const iframe = document.createElement('iframe');
+                iframe.className = 'stream-iframe';
+                iframe.srcdoc = iframeContent;
+                iframe.sandbox = 'allow-scripts allow-same-origin';
+                streamDiv.appendChild(iframe);
+                container.appendChild(streamDiv);
                 
                 const link = document.createElement('a');
                 link.href = props.stream_url;
                 link.target = '_blank';
-                link.className = 'view-link';
-                link.textContent = '🔗 Open Stream in New Tab';
+                link.className = 'button-link';
+                link.textContent = '🔗 Open Stream Directly';
                 container.appendChild(link);
             }
             
@@ -137,44 +128,70 @@
             title.textContent = `Sensor ${props.locationName || props.id}`;
             container.appendChild(title);
 
-            // Use the path from latest_picture and force HTTPS
-            let imagePath = props.latest_picture?.path;
+            const imagePath = props.latest_picture?.path;
+            
             if (imagePath) {
-                // Force HTTPS for mixed content fix
-                imagePath = imagePath.replace('http://', 'https://');
-                
                 const imgContainer = document.createElement('div');
                 imgContainer.className = 'sensor-image-container';
+                imgContainer.innerHTML = '<div style="color: #666;">Loading image...</div>';
                 
-                const img = document.createElement('img');
+                // Try to load the image
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
                 img.className = 'sensor-image';
-                img.src = imagePath;
-                img.alt = 'Sensor Camera';
-                img.onclick = () => window.open(imagePath, '_blank');
-                img.onerror = function() {
-                    imgContainer.innerHTML = '<div class="error-message">Image unavailable</div>';
+                
+                img.onload = function() {
+                    imgContainer.innerHTML = '';
+                    img.onclick = () => window.open(imagePath, '_blank');
+                    img.title = 'Click to open full size';
+                    imgContainer.appendChild(img);
                 };
                 
-                imgContainer.appendChild(img);
+                img.onerror = function() {
+                    imgContainer.innerHTML = `
+                        <div style="padding: 20px;">
+                            <div class="warning-message">
+                                Unable to load image directly due to browser security restrictions.
+                            </div>
+                            <a href="${imagePath}" target="_blank" class="button-link" style="display: block; margin-top: 10px;">
+                                🖼️ Open Image in New Tab
+                            </a>
+                        </div>
+                    `;
+                };
+                
+                // Try both HTTP and HTTPS
+                img.src = imagePath.replace('http://', 'https://');
+                
                 container.appendChild(imgContainer);
             }
 
-            const infoGrid = document.createElement('div');
-            infoGrid.className = 'info-grid';
+            const infoBox = document.createElement('div');
+            infoBox.className = 'info-box';
+            
+            if (props.id) {
+                const idRow = document.createElement('div');
+                idRow.className = 'info-row';
+                idRow.innerHTML = `<span class="info-label">Sensor ID:</span> ${props.id}`;
+                infoBox.appendChild(idRow);
+            }
             
             if (props.temperature && props.temperature !== -40) {
-                const temp = document.createElement('div');
-                temp.innerHTML = `<strong>Temperature:</strong> ${props.temperature}°F`;
-                infoGrid.appendChild(temp);
+                const tempRow = document.createElement('div');
+                tempRow.className = 'info-row';
+                tempRow.innerHTML = `<span class="info-label">Temperature:</span> ${props.temperature}°F`;
+                infoBox.appendChild(tempRow);
             }
             
             if (props.latest_picture?.time) {
-                const time = document.createElement('div');
-                time.innerHTML = `<strong>Updated:</strong> ${new Date(props.latest_picture.time).toLocaleString()}`;
-                infoGrid.appendChild(time);
+                const timeRow = document.createElement('div');
+                timeRow.className = 'info-row';
+                const date = new Date(props.latest_picture.time);
+                timeRow.innerHTML = `<span class="info-label">Last Update:</span> ${date.toLocaleString()}`;
+                infoBox.appendChild(timeRow);
             }
             
-            container.appendChild(infoGrid);
+            container.appendChild(infoBox);
             return container;
         }
 
@@ -195,19 +212,27 @@
                         const isSensor = feature.properties.type === 'sensor_camera';
                         const popupContent = isSensor ? createSensorPopup(feature) : createStreamPopup(feature);
                         
-                        layer.bindPopup(popupContent, { maxWidth: 420, minWidth: 320 });
-                        layer.bindTooltip(
-                            isSensor ? `Sensor ${feature.properties.locationName}` : feature.properties.name,
-                            { direction: 'top', offset: [0, -15], opacity: 0.9 }
-                        );
+                        layer.bindPopup(popupContent, { maxWidth: 450, minWidth: 340 });
+                        
+                        const tooltipText = isSensor ? 
+                            `Sensor ${feature.properties.locationName}` : 
+                            feature.properties.name;
+                        
+                        layer.bindTooltip(tooltipText, {
+                            direction: 'top',
+                            offset: [0, -15],
+                            opacity: 0.9
+                        });
                     }
                 }).addTo(map);
 
-                console.log(`Loaded ${data.features.length} cameras (${streamCount} streams, ${sensorCount} sensors)`);
+                console.log(`✅ Loaded ${data.features.length} cameras`);
+                console.log(`   📹 ${streamCount} video streams`);
+                console.log(`   📷 ${sensorCount} sensor cameras`);
             })
             .catch(err => {
-                console.error('Error:', err);
-                alert('Error loading camera data');
+                console.error('❌ Error:', err);
+                alert('Error loading camera data: ' + err.message);
             });
 
         const legend = L.control({position: 'bottomright'});
@@ -216,8 +241,8 @@
             div.style.cssText = 'background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-size: 13px;';
             div.innerHTML = `
                 <div style="margin-bottom: 8px; font-weight: bold;">Camera Types</div>
-                <div style="margin-bottom: 6px;">📹 Live Stream</div>
-                <div>📷 Sensor Camera</div>
+                <div style="margin-bottom: 6px;">📹 Video Stream (${0} cameras)</div>
+                <div>📷 Sensor Camera (${0} cameras)</div>
             `;
             return div;
         };
