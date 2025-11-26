@@ -259,7 +259,7 @@
           videoEl.style.display = 'none';
         }
         if (snapshotEl) {
-          snapshotEl.src = url || '';
+          snapshotEl.src = (url ? url : '');
           snapshotEl.style.display = url ? 'block' : 'none';
         }
       }
@@ -374,14 +374,18 @@
               }),
             onEachFeature: (feature, layer) => {
               const p = feature.properties || {};
-              const img = p.imagePath;
+              let img = p.imagePath;
+              // Use proxy to bypass HTTPS mixed-content blocking
+              if (img && img.startsWith('http://')) {
+                img = 'https://corsproxy.io/?' + encodeURIComponent(img);
+              }
 
               let html = '';
               for (const [k, v] of Object.entries(p)) {
                 html += `<strong>${k}</strong>: ${v}<br>`;
               }
               if (img) {
-                html += `<img src="${img}" style="width:100%;margin-top:5px;border-radius:6px;" />`;
+                html += `<img src='${img}' style="width:100%;margin-top:5px;border-radius:6px;" />`;
               }
               layer.bindPopup(html || 'Sensor camera');
 
