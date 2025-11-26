@@ -8,138 +8,34 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-        }
-        #map {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 100%;
-        }
-        .leaflet-popup-content-wrapper {
-            border-radius: 8px;
-        }
-        .popup-content {
-            min-width: 320px;
-            max-width: 400px;
-        }
-        .popup-title {
-            font-size: 16px;
-            font-weight: bold;
-            margin-bottom: 12px;
-            color: #333;
-            border-bottom: 2px solid #2196F3;
-            padding-bottom: 8px;
-        }
-        .popup-info {
-            margin: 6px 0;
-            color: #666;
-            font-size: 13px;
-            line-height: 1.4;
-        }
-        .popup-info strong {
-            color: #333;
-        }
-        .video-container {
-            width: 100%;
-            margin: 12px 0;
-            background: #000;
-            border-radius: 6px;
-            overflow: hidden;
-            position: relative;
-        }
-        video {
-            width: 100%;
-            height: 240px;
-            display: block;
-            object-fit: contain;
-        }
-        .sensor-image-container {
-            width: 100%;
-            margin: 12px 0;
-            background: #f5f5f5;
-            border-radius: 6px;
-            overflow: hidden;
-            text-align: center;
-        }
-        .sensor-image {
-            width: 100%;
-            display: block;
-            cursor: pointer;
-        }
-        .sensor-image:hover {
-            opacity: 0.9;
-        }
-        .error-message {
-            color: #d32f2f;
-            font-size: 12px;
-            padding: 10px;
-            background: #ffebee;
-            border-radius: 4px;
-            margin: 10px 0;
-            border-left: 3px solid #d32f2f;
-        }
-        .loading {
-            text-align: center;
-            padding: 20px;
-            color: #666;
-            font-style: italic;
-        }
-        .view-link {
-            display: inline-block;
-            margin-top: 10px;
-            padding: 8px 16px;
-            background: #2196F3;
-            color: white;
-            text-decoration: none;
-            border-radius: 4px;
-            font-size: 13px;
-            transition: background 0.2s;
-        }
-        .view-link:hover {
-            background: #1976D2;
-        }
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin: 10px 0;
-            padding: 10px;
-            background: #f5f5f5;
-            border-radius: 4px;
-        }
-        .info-item {
-            font-size: 12px;
-        }
-        .info-label {
-            color: #666;
-            font-weight: 600;
-        }
-        .info-value {
-            color: #333;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        .popup-content { min-width: 320px; max-width: 420px; }
+        .popup-title { font-size: 16px; font-weight: bold; margin-bottom: 12px; color: #333; border-bottom: 2px solid #2196F3; padding-bottom: 8px; }
+        .popup-info { margin: 6px 0; color: #666; font-size: 13px; }
+        .video-container { width: 100%; margin: 12px 0; background: #000; border-radius: 6px; overflow: hidden; position: relative; min-height: 240px; display: flex; align-items: center; justify-content: center; }
+        video { width: 100%; height: 240px; display: block; }
+        .sensor-image-container { width: 100%; margin: 12px 0; background: #f5f5f5; border-radius: 6px; overflow: hidden; text-align: center; }
+        .sensor-image { width: 100%; display: block; cursor: pointer; }
+        .error-message { color: #d32f2f; font-size: 12px; padding: 10px; background: #ffebee; border-radius: 4px; margin: 10px 0; }
+        .loading { text-align: center; padding: 20px; color: #fff; font-style: italic; }
+        .view-link { display: inline-block; margin-top: 10px; padding: 8px 16px; background: #2196F3; color: white; text-decoration: none; border-radius: 4px; font-size: 13px; }
+        .view-link:hover { background: #1976D2; }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 4px; font-size: 12px; }
     </style>
 </head>
 <body>
     <div id="map"></div>
 
     <script>
-        // Initialize the map centered on Oklahoma
         const map = L.map('map').setView([35.5, -97.5], 7);
 
-        // Add OpenStreetMap tiles
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors',
+            attribution: '© OpenStreetMap',
             maxZoom: 19
         }).addTo(map);
 
-        // Custom icons for different camera types
         const streamIcon = L.divIcon({
             className: 'custom-icon',
             html: '<div style="background: #2196F3; color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); font-size: 16px;">📹</div>',
@@ -154,13 +50,12 @@
             iconAnchor: [14, 14]
         });
 
-        // Function to create video player for m3u8 streams
         function createVideoPlayer(streamUrl) {
             const videoId = 'video-' + Math.random().toString(36).substr(2, 9);
             const container = document.createElement('div');
             container.className = 'video-container';
             container.innerHTML = `
-                <video id="${videoId}" controls muted playsinline></video>
+                <video id="${videoId}" controls playsinline crossorigin="anonymous"></video>
                 <div class="loading">Loading stream...</div>
             `;
             
@@ -168,13 +63,14 @@
                 const video = document.getElementById(videoId);
                 const loading = container.querySelector('.loading');
                 
-                if (video && Hls.isSupported()) {
+                if (!video) return;
+                
+                if (Hls.isSupported()) {
                     const hls = new Hls({
                         enableWorker: true,
-                        lowLatencyMode: true,
-                        backBufferLength: 90,
-                        maxBufferLength: 30,
-                        maxMaxBufferLength: 60
+                        xhrSetup: function(xhr, url) {
+                            xhr.withCredentials = false;
+                        }
                     });
                     
                     hls.loadSource(streamUrl);
@@ -182,43 +78,28 @@
                     
                     hls.on(Hls.Events.MANIFEST_PARSED, () => {
                         if (loading) loading.style.display = 'none';
-                        video.play().catch(e => {
-                            console.log('Autoplay prevented, user interaction required');
-                        });
+                        video.play().catch(e => console.log('Autoplay prevented'));
                     });
                     
                     hls.on(Hls.Events.ERROR, (event, data) => {
-                        console.error('HLS Error:', data);
-                        if (data.fatal) {
-                            if (loading) {
-                                loading.innerHTML = '<div class="error-message">Stream unavailable. Click the link below to try opening directly.</div>';
-                            }
+                        if (data.fatal && loading) {
+                            loading.innerHTML = '<div class="error-message">Stream temporarily unavailable</div>';
                         }
                     });
                 } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
                     video.src = streamUrl;
                     video.addEventListener('loadedmetadata', () => {
                         if (loading) loading.style.display = 'none';
-                        video.play().catch(e => {
-                            console.log('Autoplay prevented, user interaction required');
-                        });
-                    });
-                    video.addEventListener('error', () => {
-                        if (loading) {
-                            loading.innerHTML = '<div class="error-message">Stream unavailable. Click the link below to try opening directly.</div>';
-                        }
+                        video.play().catch(e => console.log('Autoplay prevented'));
                     });
                 } else {
-                    if (loading) {
-                        loading.innerHTML = '<div class="error-message">Video playback not supported in this browser.</div>';
-                    }
+                    if (loading) loading.innerHTML = '<div class="error-message">Video not supported</div>';
                 }
             }, 100);
             
             return container;
         }
 
-        // Function to create popup content for stream cameras
         function createStreamPopup(feature) {
             const props = feature.properties;
             const container = document.createElement('div');
@@ -230,8 +111,7 @@
             container.appendChild(title);
 
             if (props.stream_url) {
-                const videoPlayer = createVideoPlayer(props.stream_url);
-                container.appendChild(videoPlayer);
+                container.appendChild(createVideoPlayer(props.stream_url));
                 
                 const link = document.createElement('a');
                 link.href = props.stream_url;
@@ -239,17 +119,11 @@
                 link.className = 'view-link';
                 link.textContent = '🔗 Open Stream in New Tab';
                 container.appendChild(link);
-            } else {
-                const error = document.createElement('div');
-                error.className = 'error-message';
-                error.textContent = 'No stream URL available';
-                container.appendChild(error);
             }
             
             return container;
         }
 
-        // Function to create popup content for sensor cameras
         function createSensorPopup(feature) {
             const props = feature.properties;
             const container = document.createElement('div');
@@ -257,166 +131,88 @@
             
             const title = document.createElement('div');
             title.className = 'popup-title';
-            title.textContent = props.locationName ? `Sensor ${props.locationName}` : 'Sensor Camera';
+            title.textContent = `Sensor ${props.locationName || props.id}`;
             container.appendChild(title);
 
-            // Display the sensor image
-            if (props.image_url) {
+            // Use the path from latest_picture
+            const imagePath = props.latest_picture?.path;
+            
+            if (imagePath) {
                 const imgContainer = document.createElement('div');
                 imgContainer.className = 'sensor-image-container';
                 
                 const img = document.createElement('img');
                 img.className = 'sensor-image';
-                img.alt = 'Sensor Camera Image';
-                img.title = 'Click to open full size';
-                
-                // Try the latest.jpg URL first
-                img.src = props.image_url;
-                
-                img.onclick = function() {
-                    window.open(props.image_url, '_blank');
-                };
-                
+                img.src = imagePath;
+                img.alt = 'Sensor Camera';
+                img.onclick = () => window.open(imagePath, '_blank');
                 img.onerror = function() {
-                    // If latest.jpg fails, try the fallback URL
-                    if (props.image_url_fallback && img.src !== props.image_url_fallback) {
-                        console.log(`Failed to load ${img.src}, trying fallback...`);
-                        img.src = props.image_url_fallback;
-                    } else {
-                        // Both failed, show error
-                        imgContainer.innerHTML = `
-                            <div class="error-message">
-                                Image unavailable<br>
-                                <small>Tried: ${props.image_url}</small>
-                            </div>
-                        `;
-                    }
+                    imgContainer.innerHTML = '<div class="error-message">Image unavailable</div>';
                 };
                 
                 imgContainer.appendChild(img);
                 container.appendChild(imgContainer);
-            } else {
-                const error = document.createElement('div');
-                error.className = 'error-message';
-                error.textContent = 'No image available for this sensor';
-                container.appendChild(error);
             }
 
-            // Info grid
             const infoGrid = document.createElement('div');
             infoGrid.className = 'info-grid';
             
-            if (props.id) {
-                const idItem = document.createElement('div');
-                idItem.className = 'info-item';
-                idItem.innerHTML = `<div class="info-label">Sensor ID</div><div class="info-value">${props.id}</div>`;
-                infoGrid.appendChild(idItem);
+            if (props.temperature && props.temperature !== -40) {
+                const temp = document.createElement('div');
+                temp.innerHTML = `<strong>Temperature:</strong> ${props.temperature}°F`;
+                infoGrid.appendChild(temp);
             }
             
-            if (props.temperature !== undefined && props.temperature !== null && props.temperature !== -40) {
-                const tempItem = document.createElement('div');
-                tempItem.className = 'info-item';
-                tempItem.innerHTML = `<div class="info-label">Temperature</div><div class="info-value">${props.temperature}°F</div>`;
-                infoGrid.appendChild(tempItem);
-            }
-            
-            if (props.image_resolution) {
-                const resItem = document.createElement('div');
-                resItem.className = 'info-item';
-                resItem.innerHTML = `<div class="info-label">Resolution</div><div class="info-value">${props.image_resolution}</div>`;
-                infoGrid.appendChild(resItem);
-            }
-            
-            if (props.image_time) {
-                const timeItem = document.createElement('div');
-                timeItem.className = 'info-item';
-                timeItem.innerHTML = `<div class="info-label">Last Update</div><div class="info-value">${new Date(props.image_time).toLocaleString()}</div>`;
-                infoGrid.appendChild(timeItem);
+            if (props.latest_picture?.time) {
+                const time = document.createElement('div');
+                time.innerHTML = `<strong>Updated:</strong> ${new Date(props.latest_picture.time).toLocaleString()}`;
+                infoGrid.appendChild(time);
             }
             
             container.appendChild(infoGrid);
-            
             return container;
         }
 
-        // Load and display the GeoJSON data
-        console.log('Loading camera data...');
+        console.log('Loading cameras...');
         
-        // Add cache busting parameter to ensure fresh data
-        const timestamp = new Date().getTime();
-        fetch(`https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/combined_oklahoma.geojson?t=${timestamp}`)
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                return response.json();
-            })
+        fetch(`https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/combined_oklahoma.geojson?t=${Date.now()}`)
+            .then(r => r.json())
             .then(data => {
-                console.log('Data loaded:', data);
-                
-                let streamCount = 0;
-                let sensorCount = 0;
+                let streamCount = 0, sensorCount = 0;
                 
                 L.geoJSON(data, {
-                    pointToLayer: function(feature, latlng) {
+                    pointToLayer: (feature, latlng) => {
                         const isSensor = feature.properties.type === 'sensor_camera';
-                        if (isSensor) {
-                            sensorCount++;
-                        } else {
-                            streamCount++;
-                        }
-                        return L.marker(latlng, {
-                            icon: isSensor ? sensorIcon : streamIcon
-                        });
+                        if (isSensor) sensorCount++; else streamCount++;
+                        return L.marker(latlng, { icon: isSensor ? sensorIcon : streamIcon });
                     },
-                    onEachFeature: function(feature, layer) {
+                    onEachFeature: (feature, layer) => {
                         const isSensor = feature.properties.type === 'sensor_camera';
-                        const popupContent = isSensor ? 
-                            createSensorPopup(feature) : 
-                            createStreamPopup(feature);
+                        const popupContent = isSensor ? createSensorPopup(feature) : createStreamPopup(feature);
                         
-                        layer.bindPopup(popupContent, {
-                            maxWidth: 420,
-                            minWidth: 320,
-                            maxHeight: 600
-                        });
-
-                        // Add tooltip with name
-                        const name = isSensor ? 
-                            `Sensor ${feature.properties.locationName || feature.properties.id}` :
-                            feature.properties.name;
-                        
-                        layer.bindTooltip(name, {
-                            permanent: false,
-                            direction: 'top',
-                            offset: [0, -15],
-                            opacity: 0.9
-                        });
+                        layer.bindPopup(popupContent, { maxWidth: 420, minWidth: 320 });
+                        layer.bindTooltip(
+                            isSensor ? `Sensor ${feature.properties.locationName}` : feature.properties.name,
+                            { direction: 'top', offset: [0, -15], opacity: 0.9 }
+                        );
                     }
                 }).addTo(map);
 
-                console.log(`Loaded ${data.features.length} cameras total`);
-                console.log(`- ${streamCount} stream cameras`);
-                console.log(`- ${sensorCount} sensor cameras`);
+                console.log(`Loaded ${data.features.length} cameras (${streamCount} streams, ${sensorCount} sensors)`);
             })
-            .catch(error => {
-                console.error('Error loading camera data:', error);
-                alert('Error loading camera data: ' + error.message);
+            .catch(err => {
+                console.error('Error:', err);
+                alert('Error loading camera data');
             });
 
-        // Add legend
         const legend = L.control({position: 'bottomright'});
-        legend.onAdd = function(map) {
-            const div = L.DomUtil.create('div', 'info legend');
-            div.style.background = 'white';
-            div.style.padding = '12px';
-            div.style.borderRadius = '8px';
-            div.style.boxShadow = '0 2px 6px rgba(0,0,0,0.3)';
-            div.style.fontSize = '13px';
+        legend.onAdd = () => {
+            const div = L.DomUtil.create('div');
+            div.style.cssText = 'background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-size: 13px;';
             div.innerHTML = `
                 <div style="margin-bottom: 8px; font-weight: bold;">Camera Types</div>
-                <div style="margin-bottom: 6px;"><span style="font-size: 16px;">📹</span> Live Stream Camera</div>
-                <div><span style="font-size: 16px;">📷</span> Sensor Camera (Images)</div>
+                <div style="margin-bottom: 6px;">📹 Live Stream</div>
+                <div>📷 Sensor Camera</div>
             `;
             return div;
         };
