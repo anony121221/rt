@@ -1,252 +1,329 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oklahoma Traffic Cameras</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-        .popup-content { min-width: 340px; max-width: 420px; }
-        .popup-title { font-size: 16px; font-weight: bold; margin-bottom: 12px; color: #333; border-bottom: 2px solid #2196F3; padding-bottom: 8px; }
-        .stream-container { width: 100%; height: 240px; margin: 12px 0; background: #000; border-radius: 6px; overflow: hidden; }
-        .stream-iframe { width: 100%; height: 100%; border: none; }
-        .sensor-image-container { width: 100%; margin: 12px 0; background: #f5f5f5; border-radius: 6px; overflow: hidden; text-align: center; min-height: 240px; display: flex; align-items: center; justify-content: center; }
-        .sensor-image { max-width: 100%; max-height: 300px; display: block; margin: 0 auto; cursor: pointer; }
-        .info-box { padding: 10px; background: #f5f5f5; border-radius: 4px; margin: 8px 0; font-size: 13px; }
-        .info-row { margin: 4px 0; }
-        .info-label { font-weight: bold; color: #555; }
-        .button-link { display: inline-block; margin-top: 10px; padding: 8px 16px; background: #2196F3; color: white; text-decoration: none; border-radius: 4px; font-size: 13px; cursor: pointer; border: none; }
-        .button-link:hover { background: #1976D2; }
-        .message { padding: 12px; margin: 8px 0; border-radius: 4px; font-size: 13px; }
-        .info-message { background: #e3f2fd; color: #1565c0; border-left: 3px solid #2196F3; }
-        .warning-message { background: #fff3e0; color: #e65100; border-left: 3px solid #ff9800; }
-    </style>
+  <meta charset="utf-8" />
+  <title>Oklahoma GeoJSON + m3u8 Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Leaflet CSS -->
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #05060a;
+      color: #fff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #app {
+      display: flex;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    #map {
+      flex: 1 1 auto;
+    }
+
+    /* Right side panel for video */
+    #side-panel {
+      width: 360px;
+      max-width: 40%;
+      background: #0b0d12;
+      border-left: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      box-sizing: border-box;
+      gap: 8px;
+    }
+
+    #side-panel h1 {
+      margin: 0 0 4px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    #side-panel p {
+      margin: 0 0 6px;
+      font-size: 12px;
+      color: #9ca3af;
+    }
+
+    #m3u8-url {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #020617;
+      color: #e5e7eb;
+      font-size: 12px;
+      outline: none;
+    }
+
+    #m3u8-url:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.4);
+    }
+
+    #load-btn {
+      margin-top: 4px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: none;
+      background: #ffffff;
+      color: #020617;
+      font-weight: 600;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    #load-btn:hover {
+      filter: brightness(0.95);
+    }
+
+    #video-container {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: #020617;
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+
+    #video-player {
+      width: 100%;
+      height: 100%;
+      background: #000;
+    }
+
+    #status {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-top: 4px;
+      white-space: pre-wrap;
+    }
+
+    /* Leaflet popup tweaks */
+    .leaflet-popup-content-wrapper {
+      background: #020617;
+      color: #e5e7eb;
+      border-radius: 10px;
+    }
+
+    .leaflet-popup-tip {
+      background: #020617;
+    }
+
+    .leaflet-container {
+      background: #020617;
+    }
+  </style>
 </head>
 <body>
+  <div id="app">
     <div id="map"></div>
 
-    <script>
-        const map = L.map('map').setView([35.5, -97.5], 7);
+    <aside id="side-panel">
+      <h1>Oklahoma GeoJSON + Stream</h1>
+      <p>Left: Oklahoma polygons from your GeoJSON.
+         Right: m3u8 video player (HLS) using hls.js.</p>
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap',
-            maxZoom: 19
+      <label for="m3u8-url" style="font-size:11px;font-weight:500;">m3u8 URL</label>
+      <input
+        id="m3u8-url"
+        type="text"
+        placeholder="Paste an m3u8 link here and hit Load"
+        value=""
+      />
+      <button id="load-btn">Load Stream</button>
+
+      <div id="video-container">
+        <video id="video-player" controls muted playsinline></video>
+      </div>
+
+      <div id="status">Ready.</div>
+    </aside>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-JcG8j6tP2Jb0C2lGkGixNqj0QmCw3j1u0Sx3C3p3p3s="
+    crossorigin=""
+  ></script>
+
+  <!-- hls.js for m3u8 playback in browsers that don't support it natively -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
+
+  <script>
+    // 1) Initialize the Leaflet map
+    const map = L.map('map', {
+      zoomControl: true
+    }).setView([35.5, -97.5], 7); // Rough center of Oklahoma
+
+    // Base layer
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    const geoJsonUrl = 'https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/combined_oklahoma.geojson';
+
+    // 2) Load and render the GeoJSON as POINT MARKERS
+    fetch(geoJsonUrl)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`GeoJSON HTTP error ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((data) => {
+        const geoLayer = L.geoJSON(data, {
+          pointToLayer: function (feature, latlng) {
+            return L.circleMarker(latlng, {
+              radius: 6,
+              color: '#60a5fa',
+              fillColor: '#1d4ed8',
+              fillOpacity: 0.9,
+              weight: 2
+            });
+          },
+          onEachFeature: function (feature, layer) {
+            const props = feature.properties || {};
+            const stream = props.m3u8 || props.stream || props.url || null;
+
+            let infoHtml = '';
+            for (const [k, v] of Object.entries(props)) {
+              infoHtml += `<strong>${k}</strong>: ${v}<br>`;
+            }
+            if (!infoHtml) infoHtml = 'No properties';
+
+            layer.bindPopup(infoHtml);
+
+            // CLICK loads the m3u8 feed
+            if (stream) {
+              layer.on('click', () => {
+                input.value = stream;
+                loadStream(stream);
+                setStatus('Loaded from sensor click');
+              });
+            }
+          }
         }).addTo(map);
 
-        const streamIcon = L.divIcon({
-            className: 'custom-icon',
-            html: '<div style="background: #2196F3; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); font-size: 16px;">📹</div>',
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
+        try {
+          map.fitBounds(geoLayer.getBounds());
+        } catch (err) {
+          console.warn('Could not fit bounds:', err);
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading GeoJSON:', err);
+        document.getElementById('status').textContent = 'Error loading GeoJSON: ' + err.message;
+      } (err) {
+          console.warn('Could not fit bounds:', err);
+        }
+      })
+      .catch((err) => {
+        console.error('Error loading GeoJSON:', err);
+        document.getElementById('status').textContent = 'Error loading GeoJSON: ' + err.message;
+      });
+
+    // 3) m3u8 video player setup using hls.js
+    const video = document.getElementById('video-player');
+    const input = document.getElementById('m3u8-url');
+    const loadBtn = document.getElementById('load-btn');
+    const statusEl = document.getElementById('status');
+
+    let hlsInstance = null;
+
+    function setStatus(msg) {
+      statusEl.textContent = msg;
+    }
+
+    function destroyHls() {
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+    }
+
+    function loadStream(url) {
+      if (!url) {
+        setStatus('Please paste an m3u8 URL first.');
+        return;
+      }
+
+      destroyHls();
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+
+      setStatus('Loading stream...');
+
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Safari and some browsers can handle HLS natively
+        video.src = url;
+        video.play().then(() => {
+          setStatus('Playing (native HLS support).');
+        }).catch((err) => {
+          setStatus('Error starting playback: ' + err.message);
+          console.error(err);
+        });
+      } else if (window.Hls && window.Hls.isSupported()) {
+        // Use hls.js for other browsers
+        hlsInstance = new Hls({
+          enableWorker: true
         });
 
-        const sensorIcon = L.divIcon({
-            className: 'custom-icon',
-            html: '<div style="background: #FF9800; color: white; border-radius: 50%; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border: 3px solid white; box-shadow: 0 2px 6px rgba(0,0,0,0.4); font-size: 16px;">📷</div>',
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
+        hlsInstance.loadSource(url);
+        hlsInstance.attachMedia(video);
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          setStatus('Manifest parsed, starting playback...');
+          video.play().then(() => {
+            setStatus('Playing m3u8 stream.');
+          }).catch((err) => {
+            setStatus('Error starting playback: ' + err.message);
+            console.error(err);
+          });
         });
 
-        function createStreamPopup(feature) {
-            const props = feature.properties;
-            const container = document.createElement('div');
-            container.className = 'popup-content';
-            
-            const title = document.createElement('div');
-            title.className = 'popup-title';
-            title.textContent = props.name || 'Traffic Camera';
-            container.appendChild(title);
+        hlsInstance.on(Hls.Events.ERROR, (event, data) => {
+          console.error('HLS.js error:', data);
+          setStatus('HLS error: ' + (data && data.details ? data.details : 'unknown'));
+        });
+      } else {
+        setStatus('This browser does not support HLS natively and hls.js is not available.');
+      }
+    }
 
-            if (props.stream_url) {
-                // Create a simple HTML page for the iframe
-                const iframeContent = `
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-                        <style>
-                            body { margin: 0; background: #000; }
-                            video { width: 100%; height: 100%; }
-                            .error { color: white; padding: 20px; text-align: center; }
-                        </style>
-                    </head>
-                    <body>
-                        <video id="video" controls autoplay muted></video>
-                        <div id="error" class="error" style="display:none;">Stream loading...</div>
-                        <script>
-                            const video = document.getElementById('video');
-                            const errorDiv = document.getElementById('error');
-                            const streamUrl = '${props.stream_url}';
-                            
-                            if (Hls.isSupported()) {
-                                const hls = new Hls();
-                                hls.loadSource(streamUrl);
-                                hls.attachMedia(video);
-                                hls.on(Hls.Events.ERROR, function(event, data) {
-                                    errorDiv.style.display = 'block';
-                                    errorDiv.textContent = 'Stream unavailable';
-                                });
-                            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                                video.src = streamUrl;
-                            }
-                        </script>
-                    </body>
-                    </html>
-                `;
-                
-                const streamDiv = document.createElement('div');
-                streamDiv.className = 'stream-container';
-                const iframe = document.createElement('iframe');
-                iframe.className = 'stream-iframe';
-                iframe.srcdoc = iframeContent;
-                iframe.sandbox = 'allow-scripts allow-same-origin';
-                streamDiv.appendChild(iframe);
-                container.appendChild(streamDiv);
-                
-                const link = document.createElement('a');
-                link.href = props.stream_url;
-                link.target = '_blank';
-                link.className = 'button-link';
-                link.textContent = '🔗 Open Stream Directly';
-                container.appendChild(link);
-            }
-            
-            return container;
-        }
+    loadBtn.addEventListener('click', () => {
+      const url = input.value.trim();
+      loadStream(url);
+    });
 
-        function createSensorPopup(feature) {
-            const props = feature.properties;
-            const container = document.createElement('div');
-            container.className = 'popup-content';
-            
-            const title = document.createElement('div');
-            title.className = 'popup-title';
-            title.textContent = `Sensor ${props.locationName || props.id}`;
-            container.appendChild(title);
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        loadStream(input.value.trim());
+      }
+    });
 
-            const imagePath = props.latest_picture?.path;
-            
-            if (imagePath) {
-                const imgContainer = document.createElement('div');
-                imgContainer.className = 'sensor-image-container';
-                imgContainer.innerHTML = '<div style="color: #666;">Loading image...</div>';
-                
-                // Try to load the image
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                img.className = 'sensor-image';
-                
-                img.onload = function() {
-                    imgContainer.innerHTML = '';
-                    img.onclick = () => window.open(imagePath, '_blank');
-                    img.title = 'Click to open full size';
-                    imgContainer.appendChild(img);
-                };
-                
-                img.onerror = function() {
-                    imgContainer.innerHTML = `
-                        <div style="padding: 20px;">
-                            <div class="warning-message">
-                                Unable to load image directly due to browser security restrictions.
-                            </div>
-                            <a href="${imagePath}" target="_blank" class="button-link" style="display: block; margin-top: 10px;">
-                                🖼️ Open Image in New Tab
-                            </a>
-                        </div>
-                    `;
-                };
-                
-                // Try both HTTP and HTTPS
-                img.src = imagePath.replace('http://', 'https://');
-                
-                container.appendChild(imgContainer);
-            }
-
-            const infoBox = document.createElement('div');
-            infoBox.className = 'info-box';
-            
-            if (props.id) {
-                const idRow = document.createElement('div');
-                idRow.className = 'info-row';
-                idRow.innerHTML = `<span class="info-label">Sensor ID:</span> ${props.id}`;
-                infoBox.appendChild(idRow);
-            }
-            
-            if (props.temperature && props.temperature !== -40) {
-                const tempRow = document.createElement('div');
-                tempRow.className = 'info-row';
-                tempRow.innerHTML = `<span class="info-label">Temperature:</span> ${props.temperature}°F`;
-                infoBox.appendChild(tempRow);
-            }
-            
-            if (props.latest_picture?.time) {
-                const timeRow = document.createElement('div');
-                timeRow.className = 'info-row';
-                const date = new Date(props.latest_picture.time);
-                timeRow.innerHTML = `<span class="info-label">Last Update:</span> ${date.toLocaleString()}`;
-                infoBox.appendChild(timeRow);
-            }
-            
-            container.appendChild(infoBox);
-            return container;
-        }
-
-        console.log('Loading cameras...');
-        
-        fetch(`https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/combined_oklahoma.geojson?t=${Date.now()}`)
-            .then(r => r.json())
-            .then(data => {
-                let streamCount = 0, sensorCount = 0;
-                
-                L.geoJSON(data, {
-                    pointToLayer: (feature, latlng) => {
-                        const isSensor = feature.properties.type === 'sensor_camera';
-                        if (isSensor) sensorCount++; else streamCount++;
-                        return L.marker(latlng, { icon: isSensor ? sensorIcon : streamIcon });
-                    },
-                    onEachFeature: (feature, layer) => {
-                        const isSensor = feature.properties.type === 'sensor_camera';
-                        const popupContent = isSensor ? createSensorPopup(feature) : createStreamPopup(feature);
-                        
-                        layer.bindPopup(popupContent, { maxWidth: 450, minWidth: 340 });
-                        
-                        const tooltipText = isSensor ? 
-                            `Sensor ${feature.properties.locationName}` : 
-                            feature.properties.name;
-                        
-                        layer.bindTooltip(tooltipText, {
-                            direction: 'top',
-                            offset: [0, -15],
-                            opacity: 0.9
-                        });
-                    }
-                }).addTo(map);
-
-                console.log(`✅ Loaded ${data.features.length} cameras`);
-                console.log(`   📹 ${streamCount} video streams`);
-                console.log(`   📷 ${sensorCount} sensor cameras`);
-            })
-            .catch(err => {
-                console.error('❌ Error:', err);
-                alert('Error loading camera data: ' + err.message);
-            });
-
-        const legend = L.control({position: 'bottomright'});
-        legend.onAdd = () => {
-            const div = L.DomUtil.create('div');
-            div.style.cssText = 'background: white; padding: 12px; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.3); font-size: 13px;';
-            div.innerHTML = `
-                <div style="margin-bottom: 8px; font-weight: bold;">Camera Types</div>
-                <div style="margin-bottom: 6px;">📹 Video Stream (${0} cameras)</div>
-                <div>📷 Sensor Camera (${0} cameras)</div>
-            `;
-            return div;
-        };
-        legend.addTo(map);
-    </script>
+    // Optional: if you have a default test URL, you can set it here.
+    // input.value = 'https://example.com/your-stream.m3u8';
+  </script>
 </body>
 </html>
