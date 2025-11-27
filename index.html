@@ -1,71 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Traffic Camera Monitor</title>
-    <link href="https://unpkg.com/maplibre-gl@5.13.0/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/maplibre-gl@5.13.0/dist/maplibre-gl.js"></script>
-    <script src="https://unpkg.com/supercluster@8.0.1/dist/supercluster.min.js"></script>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100%; height: 100%; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; }
-        #app { width: 100vw; height: 100vh; position: relative; }
-        #map { width: 100%; height: 100%; }
-        .api-key-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.8); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-        .modal-content { background: #1e293b; padding: 2rem; border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); max-width: 400px; width: 90%; }
-        .modal-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem; }
-        .modal-header h1 { font-size: 1.5rem; color: #3b82f6; }
-        .input-group { margin-bottom: 1rem; }
-        .input-group label { display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 0.5rem; color: #94a3b8; }
-        .input-group input { width: 100%; padding: 0.75rem; background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #e2e8f0; font-size: 1rem; }
-        .input-group input:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
-        .btn-primary { width: 100%; padding: 0.75rem; background: #3b82f6; color: white; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; transition: background 0.2s; }
-        .btn-primary:hover { background: #2563eb; }
-        .info-note { margin-top: 1rem; font-size: 0.75rem; color: #64748b; text-align: center; }
-        .info-note a { color: #3b82f6; text-decoration: none; }
-        .info-note a:hover { text-decoration: underline; }
-        .stats-panel { position: absolute; top: 1rem; left: 1rem; background: #1e293b; padding: 1rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); z-index: 10; }
-        .stats-panel .count { font-size: 1.5rem; font-weight: 700; color: #3b82f6; }
-        .stats-panel .label { font-size: 0.875rem; color: #94a3b8; }
-        .loading-indicator { position: absolute; top: 1rem; left: 50%; transform: translateX(-50%); background: #1e293b; padding: 0.75rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); display: flex; align-items: center; gap: 0.5rem; z-index: 10; }
-        .loading-indicator.hidden { display: none !important; }
-        .spinner { width: 20px; height: 20px; border: 3px solid #334155; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.8s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        .camera-popup { position: absolute; top: 1rem; right: 1rem; background: #1e293b; border-radius: 12px; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); max-width: 450px; width: 90%; z-index: 10; overflow: hidden; max-height: 80vh; overflow-y: auto; }
-        .camera-popup.hidden { display: none !important; }
-        .popup-header { background: #3b82f6; padding: 1rem; display: flex; align-items: center; justify-content: space-between; }
-        .popup-header h3 { font-size: 1rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
-        .close-btn { background: transparent; border: none; color: white; cursor: pointer; padding: 0.25rem; border-radius: 4px; transition: background 0.2s; font-size: 1.5rem; }
-        .close-btn:hover { background: rgba(255, 255, 255, 0.1); }
-        .popup-content { padding: 1rem; }
-        .popup-meta { font-size: 0.75rem; color: #64748b; margin-bottom: 0.75rem; }
-        .camera-image { width: 100%; border-radius: 8px; background: #0f172a; max-height: 300px; object-fit: cover; }
-        .image-placeholder { width: 100%; height: 200px; background: #0f172a; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #64748b; flex-direction: column; gap: 0.5rem; text-align: center; padding: 1rem; }
-        .image-placeholder.hidden { display: none !important; }
-        .btn-link { display: block; width: 100%; margin-top: 0.75rem; padding: 0.75rem; background: #3b82f6; color: white; text-align: center; text-decoration: none; border-radius: 8px; font-weight: 600; transition: background 0.2s; }
-        .btn-link:hover { background: #2563eb; }
-        .cluster-marker { background: #3b82f6; border: 3px solid #1e293b; border-radius: 50%; color: white; font-weight: 700; text-align: center; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.2s; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
-        .cluster-marker:hover { transform: scale(1.1); }
-        .camera-marker { width: 32px; height: 32px; background: #3b82f6; border: 3px solid #1e293b; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: transform 0.2s; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
-        .camera-marker:hover { transform: scale(1.2); }
-        .error-banner { position: absolute; top: 1rem; left: 50%; transform: translateX(-50%); background: #dc2626; color: white; padding: 0.75rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); z-index: 10; max-width: 80%; }
-        .error-banner.hidden { display: none !important; }
-
-    </style>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Oklahoma Traffic Cameras</title>
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-o9N1j7kPyk+8Gk5tC4s3tR9fJkP0Q0Lw3vCqkQ+3ZiU="
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
     crossorigin=""
   />
   <script
     src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-o9N1j7kPyk+8Gk5tC4s3tR9fJkP0Q0Lw3vCqkQ+3ZiU="
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
     crossorigin=""
   ></script>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.12/dist/hls.min.js"></script>
@@ -207,219 +154,6 @@
   </style>
 </head>
 <body>
-    <div id="app"></div>
-
-    <script>
-        const CORS_PROXY = 'https://corsproxy.io/?';
-        
-        let map;
-        let cameras = [];
-        let selectedCamera = null;
-        let clusterIndex;
-        let markers = [];
-        let logs = [];
-
-        function addLog(message, type = 'info') {
-            const timestamp = new Date().toLocaleTimeString();
-            const logMessage = `[${timestamp}] ${message}`;
-            
-            // Log to console with appropriate method
-            switch(type) {
-                case 'error':
-                    console.error(logMessage);
-                    break;
-                case 'warn':
-                    console.warn(logMessage);
-                    break;
-                case 'success':
-                    console.log(`✅ ${logMessage}`);
-                    break;
-                default:
-                    console.log(logMessage);
-            }
-        }
-
-        async function loadAllCameras() {
-            const allCameras = [];
-            
-            addLog('Starting to load cameras from all states...', 'info');
-
-            await Promise.all([
-                loadAlabamaCameras(allCameras),
-                loadMississippiCameras(allCameras),
-                loadLouisianaCameras(allCameras),
-                loadTexasCameras(allCameras),
-                loadOklahomaCameras(allCameras),
-            ]);
-
-            addLog(`Total cameras loaded: ${allCameras.length}`, 'success');
-            return allCameras;
-        }
-
-        async function loadAlabamaCameras(allCameras) {
-            try {
-                addLog('Fetching Alabama cameras...', 'info');
-                const response = await fetch('https://raw.githubusercontent.com/AidanWelch/OpenTrafficCamMap/refs/heads/master/cameras/USA.json');
-                const data = await response.json();
-                
-                let count = 0;
-                if (data && typeof data === 'object') {
-                    Object.entries(data).forEach(([county, cities]) => {
-                        if (cities && typeof cities === 'object') {
-                            Object.entries(cities).forEach(([city, cams]) => {
-                                if (Array.isArray(cams)) {
-                                    cams.forEach((cam, index) => {
-                                        if (cam.latitude && cam.longitude && cam.format !== 'MPEG_DASH') {
-                                            allCameras.push({
-                                                id: `alabama-${county}-${city}-${index}`,
-                                                lat: cam.latitude,
-                                                lng: cam.longitude,
-                                                title: cam.description || `${city} Camera`,
-                                                source: 'Alabama',
-                                                direction: cam.direction,
-                                                imageUrl: cam.format === 'IMAGE_STREAM' ? cam.url : undefined,
-                                                webUrl: cam.url,
-                                            });
-                                            count++;
-                                        }
-                                    });
-                                }
-                            });
-                        }
-                    });
-                }
-                addLog(`Alabama: Loaded ${count} cameras`, 'success');
-            } catch (err) {
-                addLog(`Alabama error: ${err.message}`, 'error');
-            }
-        }
-
-        async function loadMississippiCameras(allCameras) {
-            try {
-                addLog('Fetching Mississippi cameras...', 'info');
-                const response = await fetch('https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/mdot_traffic_cameras.geojson');
-                const data = await response.json();
-                
-                let count = 0;
-                if (data && data.features && Array.isArray(data.features)) {
-                    data.features.forEach((feature) => {
-                        if (feature.geometry && feature.geometry.coordinates) {
-                            const props = feature.properties || {};
-                            const imageUrl = props.image_url ? CORS_PROXY + encodeURIComponent(props.image_url) : undefined;
-                            allCameras.push({
-                                id: `ms-${props.id || Math.random()}`,
-                                lat: feature.geometry.coordinates[1],
-                                lng: feature.geometry.coordinates[0],
-                                title: props.title || 'Mississippi Camera',
-                                source: 'Mississippi',
-                                webUrl: props.web_page_url,
-                                imageUrl: imageUrl,
-                            });
-                            count++;
-                        }
-                    });
-                }
-                addLog(`Mississippi: Loaded ${count} cameras`, 'success');
-            } catch (err) {
-                addLog(`Mississippi error: ${err.message}`, 'error');
-            }
-        }
-
-        async function loadLouisianaCameras(allCameras) {
-            try {
-                addLog('Fetching Louisiana cameras...', 'info');
-                const response = await fetch(CORS_PROXY + encodeURIComponent('https://www.511la.org/map/mapIcons/Cameras'));
-                const data = await response.json();
-                
-                let count = 0;
-                if (data && data.item2 && Array.isArray(data.item2)) {
-                    data.item2.forEach((marker) => {
-                        if (marker.location && Array.isArray(marker.location) && marker.location.length === 2) {
-                            const itemId = marker.itemId;
-                            allCameras.push({
-                                id: `la-${itemId}`,
-                                lat: marker.location[0],
-                                lng: marker.location[1],
-                                title: marker.title || `Louisiana Camera ${itemId}`,
-                                source: '511LA',
-                                imageUrl: `https://www.511la.org/map/Cctv/${itemId}?t=${Date.now()}`,
-                                webUrl: `https://www.511la.org/map/Cctv/${itemId}`,
-                            });
-                            count++;
-                        }
-                    });
-                }
-                addLog(`Louisiana: Loaded ${count} cameras`, 'success');
-            } catch (err) {
-                addLog(`Louisiana error: ${err.message}`, 'error');
-            }
-        }
-
-        async function loadTexasCameras(allCameras) {
-            try {
-                addLog('Fetching Texas cameras...', 'info');
-                const response = await fetch('https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/txdot_cameras.geojson');
-                const data = await response.json();
-                
-                let count = 0;
-                let withImages = 0;
-                let emptyUrls = 0;
-                let sampleUrls = [];
-                
-                if (data && data.features && Array.isArray(data.features)) {
-                    data.features.forEach((feature, idx) => {
-                        if (feature.geometry && feature.geometry.coordinates && feature.properties) {
-                            const props = feature.properties;
-                            const lat = parseFloat(feature.geometry.coordinates[1]);
-                            const lng = parseFloat(feature.geometry.coordinates[0]);
-                            
-                            if (!isNaN(lat) && !isNaN(lng)) {
-                                // Check for valid image URL
-                                const hasValidUrl = props.url && props.url.trim() !== '' && 
-                                                   props.url !== 'null' && props.url !== 'undefined';
-                                
-                                if (hasValidUrl) {
-                                    withImages++;
-                                    if (sampleUrls.length < 5) {
-                                        sampleUrls.push(props.url);
-                                    }
-                                } else {
-                                    emptyUrls++;
-                                }
-                                
-                                allCameras.push({
-                                    id: `tx-${props.OBJECTID || count}`,
-                                    lat: lat,
-                                    lng: lng,
-                                    title: props.Equipment_Name || props.Equipment_Name || 'Texas Camera',
-                                    source: 'Texas DOT',
-                                    roadway: props.roadway,
-                                    direction: props.Direction,
-                                    district: props.District_Name,
-                                    imageUrl: hasValidUrl ? props.url : undefined,
-                                    webUrl: hasValidUrl ? props.url : 'https://its.txdot.gov/',
-                                });
-                                count++;
-                            }
-                        }
-                    });
-                }
-                
-                console.log('🔍 TX Camera URL Analysis:');
-                console.log(`   Total cameras: ${count}`);
-                console.log(`   With images: ${withImages} (${(withImages/count*100).toFixed(1)}%)`);
-                console.log(`   Empty URLs: ${emptyUrls} (${(emptyUrls/count*100).toFixed(1)}%)`);
-                console.log('   Sample working URLs:', sampleUrls);
-                
-                addLog(`Texas: Loaded ${count} cameras (${withImages} with images, ${emptyUrls} without)`, 
-                       withImages > count / 2 ? 'success' : 'warn');
-                
-                if (withImages < count / 2) {
-                    addLog('⚠️ Most Texas cameras have no image URLs in the data', 'warn');
-                }
-            } catch (err) {
-                addLog(`Texas error: ${err.message}`, 'error');
-                console.error('Full Texas error:', err);
   <div id="map"></div>
   <div id="sidebar">
     <div class="panel-section">
@@ -487,6 +221,11 @@
       return date.toLocaleString("en-US", { timeZone: "America/Chicago" });
     }
 
+    function addCacheBuster(url) {
+      const separator = url.includes("?") ? "&" : "?";
+      return `${url}${separator}t=${Date.now()}`;
+    }
+
     function showSnapshot(url) {
       destroyHls();
       videoEl.pause();
@@ -494,8 +233,8 @@
       videoEl.style.display = "none";
       snapshotImg.style.display = "block";
 
-      const target = `${CORS_PROXY}${encodeURIComponent(url)}&t=${Date.now()}`;
-      snapshotImg.src = target;
+      const snapshotUrl = addCacheBuster(url);
+      snapshotImg.src = `${CORS_PROXY}${encodeURIComponent(snapshotUrl)}`;
       setStatus("Showing sensor snapshot (refreshes every 15 seconds).");
     }
 
@@ -545,7 +284,8 @@
       const resolution = props.resolution || "—";
       const updated = toCst(props.last_updated || props.last_update);
       const pictureTime = toCst(props.picture_timestamp || props.picture_time);
-      const thumbnail = `${CORS_PROXY}${encodeURIComponent(`http://oktrafficradar.org/hrserver/${id}/latest.jpg`)}&t=${Date.now()}`;
+      const snapshotUrl = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
+      const thumbnail = `${CORS_PROXY}${encodeURIComponent(addCacheBuster(snapshotUrl))}`;
 
       return `
         <div>
@@ -598,85 +338,6 @@
             setStatus(`Loading snapshot for sensor ${id}...`);
           });
         }
-
-        async function loadOklahomaCameras(allCameras) {
-            try {
-                addLog('Fetching Oklahoma cameras...', 'info');
-                const response = await fetch('https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/holy.txt');
-                const data = await response.json();
-                
-                let count = 0;
-                let withStreams = 0;
-                let withSnapshots = 0;
-                
-                if (data && Array.isArray(data)) {
-                    data.forEach((pole) => {
-                        if (pole.mapCameras && Array.isArray(pole.mapCameras)) {
-                            pole.mapCameras.forEach((cam) => {
-                                const lat = parseFloat(cam.latitude);
-                                const lng = parseFloat(cam.longitude);
-                                
-                                if (!isNaN(lat) && !isNaN(lng)) {
-                                    const streamUrl = cam.streamDictionary?.streamSrc;
-                                    const streamKey = cam.streamDictionary?.streamKey;
-                                    
-                                    // Oklahoma has snapshot images available!
-                                    const snapshotUrl = streamKey ? 
-                                        `https://oktraffic.org/snapshots/${streamKey}.jpg` : null;
-                                    
-                                    if (streamUrl) withStreams++;
-                                    if (snapshotUrl) withSnapshots++;
-                                    
-                                    allCameras.push({
-                                        id: `ok-${cam.id}`,
-                                        lat: lat,
-                                        lng: lng,
-                                        title: `${pole.name} - ${cam.location || cam.direction}`,
-                                        source: 'Oklahoma DOT',
-                                        direction: cam.direction,
-                                        streamUrl: streamUrl,
-                                        imageUrl: snapshotUrl, // Use snapshot instead of stream
-                                        webUrl: streamUrl ? `https://oktraffic.org` : undefined,
-                                    });
-                                    count++;
-                                }
-                            });
-                        }
-                    });
-                }
-                addLog(`Oklahoma: Loaded ${count} cameras (${withSnapshots} with snapshots, ${withStreams} with streams)`, 'success');
-                console.log(`🔍 OK snapshots available: ${withSnapshots}/${count}`);
-            } catch (err) {
-                addLog(`Oklahoma error: ${err.message}`, 'error');
-                console.error('Full Oklahoma error:', err);
-            }
-        }
-
-        function renderApp() {
-            const app = document.getElementById('app');
-            const mapTilerKey = localStorage.getItem('mapTilerKey');
-
-            if (!mapTilerKey) {
-                app.innerHTML = `
-                    <div class="api-key-modal">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <span style="font-size: 2rem;">📷</span>
-                                <h1>Traffic Camera Monitor</h1>
-                            </div>
-                            <div class="input-group">
-                                <label>MapTiler API Key</label>
-                                <input type="text" id="apiKeyInput" placeholder="Enter your MapTiler API key">
-                            </div>
-                            <button class="btn-primary" onclick="saveApiKey()">Launch Monitor</button>
-                            <div class="info-note">
-                                Get your free API key at <a href="https://www.maptiler.com/" target="_blank">maptiler.com</a>
-                            </div>
-                        </div>
-                    </div>
-                `;
-                document.getElementById('apiKeyInput').focus();
-                document.addEventListener('keypress', handleApiKeyEnter);
       }).addTo(map);
 
       videoLayer = L.geoJSON(responses[1], {
@@ -695,270 +356,16 @@
               loadStream(url);
               setStatus(`Loading video stream for ${feature.properties.name || "camera"}...`);
             } else {
-                app.innerHTML = `
-                    <div id="map"></div>
-                    <div class="stats-panel">
-                        <div class="count" id="cameraCount">0</div>
-                        <div class="label">Cameras Loaded</div>
-                    </div>
-                    <div id="loadingIndicator" class="loading-indicator">
-                        <div class="spinner"></div>
-                        <span>Loading cameras...</span>
-                    </div>
-                    <div id="errorBanner" class="error-banner hidden"></div>
-                    <div id="cameraPopup" class="camera-popup hidden"></div>
-                `;
-                initMap(mapTilerKey);
               setStatus("No stream URL provided for this camera.");
             }
           });
         }
       }).addTo(map);
 
-        function handleApiKeyEnter(e) {
-            if (e.key === 'Enter' && document.getElementById('apiKeyInput')) {
-                saveApiKey();
-            }
-        }
-
-        function saveApiKey() {
-            const input = document.getElementById('apiKeyInput');
-            const key = input.value.trim();
-            if (key) {
-                localStorage.setItem('mapTilerKey', key);
-                renderApp();
-            }
-        }
-
-        function initMap(apiKey) {
-            map = new maplibregl.Map({
-                container: 'map',
-                style: 'https://api.maptiler.com/maps/streets-v2-dark/style.json?key=' + apiKey,
-                center: [-92, 33],
-                zoom: 5.5
-            });
-
-            map.addControl(new maplibregl.NavigationControl(), 'top-right');
-
-            map.on('load', loadCameras);
-            map.on('zoom', updateMarkers);
-            map.on('move', updateMarkers);
-        }
-
-        async function loadCameras() {
-            const loadingIndicator = document.getElementById('loadingIndicator');
-            loadingIndicator.classList.remove('hidden');
-
-            try {
-                cameras = await loadAllCameras();
-                document.getElementById('cameraCount').textContent = cameras.length;
-
-                clusterIndex = new Supercluster({
-                    radius: 50,
-                    maxZoom: 16,
-                    minZoom: 0
-                });
-
-                const points = cameras.map((cam) => ({
-                    type: 'Feature',
-                    properties: { camera: cam },
-                    geometry: {
-                        type: 'Point',
-                        coordinates: [cam.lng, cam.lat]
-                    }
-                }));
-
-                clusterIndex.load(points);
-                updateMarkers();
-
-                loadingIndicator.classList.add('hidden');
-            } catch (err) {
-                addLog(`Critical error: ${err.message}`, 'error');
-                showError('Error loading camera data');
-                loadingIndicator.classList.add('hidden');
-            }
-        }
-
-        function updateMarkers() {
-            if (!map || !clusterIndex) return;
-
-            markers.forEach((marker) => marker.remove());
-            markers = [];
-
-            const bounds = map.getBounds();
-            const zoom = Math.floor(map.getZoom());
-
-            const clusters = clusterIndex.getClusters(
-                [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
-                zoom
-            );
-
-            clusters.forEach((cluster) => {
-                const [lng, lat] = cluster.geometry.coordinates;
-                const isCluster = cluster.properties.cluster;
-
-                if (isCluster) {
-                    const count = cluster.properties.point_count;
-                    const size = count < 100 ? 40 : count < 1000 ? 50 : 60;
-
-                    const el = document.createElement('div');
-                    el.className = 'cluster-marker';
-                    el.style.width = size + 'px';
-                    el.style.height = size + 'px';
-                    el.textContent = count;
-
-                    el.addEventListener('click', () => {
-                        const expansionZoom = Math.min(
-                            clusterIndex.getClusterExpansionZoom(cluster.id),
-                            20
-                        );
-                        map.easeTo({
-                            center: [lng, lat],
-                            zoom: expansionZoom
-                        });
-                    });
-
-                    const marker = new maplibregl.Marker({ element: el })
-                        .setLngLat([lng, lat])
-                        .addTo(map);
-
-                    markers.push(marker);
-                } else {
-                    const camera = cluster.properties.camera;
-
-                    const el = document.createElement('div');
-                    el.className = 'camera-marker';
-                    el.innerHTML = '📷';
-
-                    el.addEventListener('click', () => showCameraPopup(camera));
-
-                    const marker = new maplibregl.Marker({ element: el })
-                        .setLngLat([lng, lat])
-                        .addTo(map);
-
-                    markers.push(marker);
-                }
-            });
-        }
-
-        function showCameraPopup(camera) {
-            selectedCamera = camera;
-            const popup = document.getElementById('cameraPopup');
-
-            console.log('📷 Opening camera:', {
-                title: camera.title,
-                source: camera.source,
-                hasImage: !!camera.imageUrl,
-                hasStream: !!camera.streamUrl,
-                imageUrl: camera.imageUrl,
-                streamUrl: camera.streamUrl
-            });
-
-            const lat = typeof camera.lat === 'number' ? camera.lat.toFixed(4) : parseFloat(camera.lat).toFixed(4);
-            const lng = typeof camera.lng === 'number' ? camera.lng.toFixed(4) : parseFloat(camera.lng).toFixed(4);
-
-            let html = `
-                <div class="popup-header">
-                    <h3>📷 ${camera.title}</h3>
-                    <button class="close-btn" onclick="closeCameraPopup()">×</button>
-                </div>
-                <div class="popup-content">
-                    <div class="popup-meta">
-                        <strong>Source:</strong> ${camera.source} | <strong>Lat:</strong> ${lat}, <strong>Lng:</strong> ${lng}
-                        ${camera.direction ? ` | <strong>Direction:</strong> ${camera.direction}` : ''}
-                        ${camera.roadway ? ` | <strong>Road:</strong> ${camera.roadway}` : ''}
-                        ${camera.district ? `<br><strong>District:</strong> ${camera.district}` : ''}
-                    </div>
-            `;
-
-            if (camera.imageUrl) {
-                const cacheBuster = Date.now();
-                const imgUrl = camera.imageUrl.includes('?') ? 
-                    `${camera.imageUrl}&_=${cacheBuster}` : 
-                    `${camera.imageUrl}?_=${cacheBuster}`;
-                
-                // Try CORS proxy for known problematic domains
-                const needsProxy = camera.imageUrl.includes('houstontranstar.org') || 
-                                   camera.imageUrl.includes('traffic.houstontranstar.org');
-                const finalUrl = needsProxy ? CORS_PROXY + encodeURIComponent(camera.imageUrl) : imgUrl;
-                
-                console.log(`Attempting to load: ${needsProxy ? 'CORS PROXY + ' : ''}${camera.imageUrl}`);
-                    
-                html += `
-                    <div style="display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem;">
-                        <button onclick="refreshCameraImage('${camera.id}')" 
-                                style="padding: 0.5rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.8rem; flex: 1;">
-                            🔄 Refresh Image
-                        </button>
-                    </div>
-                    <img id="camera-img-${camera.id}" src="${finalUrl}" alt="${camera.title}" class="camera-image" 
-                         onerror="console.error('❌ Failed to load image:', '${camera.imageUrl}'); this.style.display='none'; this.nextElementSibling.classList.remove('hidden');"
-                         onload="console.log('✅ Image loaded successfully')">
-                    <div class="image-placeholder hidden">
-                        <div>❌ Image failed to load</div>
-                        <div style="font-size: 0.7rem;">Camera may be offline, blocked by CORS, or URL is invalid</div>
-                        ${needsProxy ? '<div style="font-size: 0.6rem; color: #f59e0b; margin-top: 0.5rem;">Tried using CORS proxy - still failed</div>' : ''}
-                    </div>
-                `;
-            } else if (camera.streamUrl) {
-                html += `
-                    <div class="image-placeholder">
-                        <div>🎥 HLS Video Stream Only</div>
-                        <div style="font-size: 0.8rem; margin-top: 0.5rem;">This camera only has live video streaming (.m3u8)</div>
-                        <div style="font-size: 0.7rem; color: #64748b;">No snapshot image available</div>
-                    </div>
-                `;
-            } else {
-                html += `
-                    <div class="image-placeholder">
-                        <div>📷 No Media Available</div>
-                        <div style="font-size: 0.7rem; margin-top: 0.5rem;">This camera location exists but has no image or stream URL in the data</div>
-                    </div>
-                `;
-            }
-
-            if (camera.webUrl) {
-                html += `<a href="${camera.webUrl}" target="_blank" class="btn-link">View Source</a>`;
-            }
-
-            html += '</div>';
-
-            popup.innerHTML = html;
-            popup.classList.remove('hidden');
-        }
-
-        function closeCameraPopup() {
-            document.getElementById('cameraPopup').classList.add('hidden');
-        }
-
-        function refreshCameraImage(cameraId) {
-            const camera = cameras.find(c => c.id === cameraId);
-            if (!camera || !camera.imageUrl) return;
-            
-            const img = document.getElementById(`camera-img-${cameraId}`);
-            if (img) {
-                console.log('🔄 Refreshing image for:', camera.title);
-                const needsProxy = camera.imageUrl.includes('houstontranstar.org') || 
-                                   camera.imageUrl.includes('traffic.houstontranstar.org');
-                const baseUrl = needsProxy ? CORS_PROXY + encodeURIComponent(camera.imageUrl) : camera.imageUrl;
-                img.src = baseUrl + (baseUrl.includes('?') ? '&' : '?') + '_=' + Date.now();
-            }
-        }
-
-        function showError(message) {
-            const banner = document.getElementById('errorBanner');
-            banner.textContent = message;
-            banner.classList.remove('hidden');
-            setTimeout(() => {
-                banner.classList.add('hidden');
-            }, 5000);
-        }
       const group = L.featureGroup([sensorLayer, videoLayer]);
       map.fitBounds(group.getBounds(), { padding: [20, 20] });
     }
 
-        renderApp();
-    </script>
     document.addEventListener("DOMContentLoaded", loadLayers);
   </script>
 </body>
