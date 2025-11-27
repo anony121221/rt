@@ -189,7 +189,6 @@
     let refreshTimer = null;
     let sensorLayer;
     let videoLayer;
-    let activeSnapshotBase = null;
 
     const statusBox = document.getElementById("status");
     const snapshotImg = document.getElementById("snapshot");
@@ -219,16 +218,7 @@
 
     function toCst(value) {
       if (!value) return "—";
-      let date;
-      if (typeof value === "number") {
-        date = new Date(value);
-      } else if (typeof value === "string" && /^\d{10}$/.test(value.trim())) {
-        date = new Date(Number(value) * 1000);
-      } else if (!Number.isNaN(Number(value)) && value.trim && value.trim() !== "") {
-        date = new Date(Number(value));
-      } else {
-        date = new Date(value);
-      }
+      const date = new Date(value);
       if (isNaN(date)) return "—";
       return date.toLocaleString("en-US", { timeZone: "America/Chicago" });
     }
@@ -238,15 +228,16 @@
       return `${url}${separator}t=${Date.now()}`;
     }
 
-    function showSnapshot(baseUrl) {
+    function showSnapshot(url) {
       destroyHls();
       videoEl.pause();
       videoEl.removeAttribute("src");
       videoEl.style.display = "none";
       snapshotImg.style.display = "block";
 
-      const snapshotUrl = addCacheBuster(wrapWithProxy(baseUrl));
-      console.log(`[snapshot] loading ${snapshotUrl}`);
+      const snapshotUrl = addCacheBuster(url);
+      const proxied = `${CORS_PROXY}${encodeURIComponent(snapshotUrl)}`;
+      console.log(`[snapshot] loading ${proxied}`);
       snapshotImg.onerror = (e) => {
         console.error("[snapshot] failed to load", e);
         setStatus("Snapshot failed to load. Check console for details.");
@@ -254,16 +245,14 @@
       snapshotImg.onload = () => {
         console.log("[snapshot] loaded successfully");
       };
-      snapshotImg.src = snapshotUrl;
+      snapshotImg.src = proxied;
       setStatus("Showing sensor snapshot (refreshes every 15 seconds).");
     }
 
-    function startSnapshotLoop(baseUrl) {
-      activeSnapshotBase = wrapWithProxy(baseUrl);
+    function scheduleSnapshot(url) {
       if (refreshTimer) clearInterval(refreshTimer);
-      const loader = () => showSnapshot(activeSnapshotBase);
-      loader();
-      refreshTimer = setInterval(loader, snapshotIntervalMs);
+      showSnapshot(url);
+      refreshTimer = setInterval(() => showSnapshot(url), snapshotIntervalMs);
     }
 
     function showVideo() {
@@ -279,22 +268,7 @@
       return url.startsWith(CORS_PROXY) ? url : `${CORS_PROXY}${encodeURIComponent(url)}`;
     }
 
-    function makeProxyLoader(baseUrl) {
-      const absoluteBase = new URL(baseUrl, window.location.href).toString();
-      return class extends Hls.DefaultConfig.loader {
-        load(context, config, stats, callbacks) {
-          try {
-            const resolved = new URL(context.url, absoluteBase).toString();
-            context.url = wrapWithProxy(resolved);
-          } catch (e) {
-            console.warn("[hls] failed to resolve URL for proxy", e);
-          }
-          super.load(context, config, stats, callbacks);
-        }
-      };
-    }
-
-    function loadStream(url, { useProxy = true, attempt = 1 } = {}) {
+    function loadStream(url, { useProxy = false, attempt = 1 } = {}) {
       showVideo();
       destroyHls();
 
@@ -316,10 +290,8 @@
         setStatus(`Playing stream natively ${attemptLabel}.`);
       } else if (Hls.isSupported()) {
         console.log(`[video] initializing hls.js ${attemptLabel}: ${target}`);
-        const loaderClass = useProxy ? makeProxyLoader(url) : undefined;
         hlsInstance = new Hls({
           debug: false,
-          loader: loaderClass,
           xhrSetup: (xhr) => {
             xhr.addEventListener("error", (e) => console.error("[hls][xhr] error", e));
             xhr.addEventListener("load", () => console.log("[hls][xhr] loaded", xhr.responseURL));
@@ -352,12 +324,10 @@
       const name = props.location_name || props.name || props.location || "Sensor";
       const temperature = props.temperature_f || props.temperature || "—";
       const resolution = props.resolution || "—";
-      const updatedRaw = props.last_updated || props.last_update || props.last_updated_utc || props.last_update_utc || props.lastupdated || props.lastupdate || props.last_updated_time || props.updated_time;
-      const pictureRaw = props.picture_timestamp || props.picture_time || props.picture_timestamp_utc || props.picture_time_utc || props.picturetime || props.picture_timestamp_epoch || props.picture_timestamp_local;
-      const updated = toCst(updatedRaw);
-      const pictureTime = toCst(pictureRaw);
-      const snapshotBase = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
-      const thumbnail = addCacheBuster(wrapWithProxy(snapshotBase));
+      const updated = toCst(props.last_updated || props.last_update);
+      const pictureTime = toCst(props.picture_timestamp || props.picture_time);
+      const snapshotUrl = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
+      const thumbnail = `${CORS_PROXY}${encodeURIComponent(addCacheBuster(snapshotUrl))}`;
 
       return `
         <div>
@@ -421,7 +391,7 @@
               return;
             }
             const snapshotUrl = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
-            startSnapshotLoop(snapshotUrl);
+            scheduleSnapshot(snapshotUrl);
             setStatus(`Loading snapshot for sensor ${id}...`);
             console.log(`[sensor] clicked sensor ${id}`);
           });
