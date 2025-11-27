@@ -249,9 +249,9 @@
       console.log(`[snapshot] loading ${snapshotUrl}`);
       snapshotImg.onerror = (e) => {
         console.error("[snapshot] failed to load", e);
-        if (!isFallback && baseUrl.startsWith("https://")) {
-          const fallbackBase = baseUrl.replace(/^https:/, "http:");
-          console.warn("[snapshot] https failed; retrying over http", fallbackBase);
+        if (!isFallback) {
+          const fallbackBase = wrapWithProxy(baseUrl);
+          console.warn("[snapshot] retrying via proxy", fallbackBase);
           startSnapshotLoop(fallbackBase, true);
           return;
         }
@@ -285,6 +285,21 @@
       return url.startsWith(CORS_PROXY) ? url : `${CORS_PROXY}${encodeURIComponent(url)}`;
     }
 
+    function makeProxyLoader(baseUrl) {
+      const absoluteBase = new URL(baseUrl, window.location.href).toString();
+      return class extends Hls.DefaultConfig.loader {
+        load(context, config, stats, callbacks) {
+          try {
+            const resolved = new URL(context.url, absoluteBase).toString();
+            context.url = wrapWithProxy(resolved);
+          } catch (e) {
+            console.warn("[hls] failed to resolve URL for proxy", e);
+          }
+          super.load(context, config, stats, callbacks);
+        }
+      };
+    }
+
     function loadStream(url, { useProxy = false, attempt = 1 } = {}) {
       showVideo();
       destroyHls();
@@ -307,8 +322,10 @@
         setStatus(`Playing stream natively ${attemptLabel}.`);
       } else if (Hls.isSupported()) {
         console.log(`[video] initializing hls.js ${attemptLabel}: ${target}`);
+        const loaderClass = useProxy ? makeProxyLoader(url) : undefined;
         hlsInstance = new Hls({
           debug: false,
+          loader: loaderClass,
           xhrSetup: (xhr) => {
             xhr.addEventListener("error", (e) => console.error("[hls][xhr] error", e));
             xhr.addEventListener("load", () => console.log("[hls][xhr] loaded", xhr.responseURL));
