@@ -264,32 +264,55 @@
       videoEl.style.display = "block";
     }
 
-    function loadStream(url) {
+    function wrapWithProxy(url) {
+      return url.startsWith(CORS_PROXY) ? url : `${CORS_PROXY}${encodeURIComponent(url)}`;
+    }
+
+    function loadStream(url, { useProxy = false, attempt = 1 } = {}) {
       showVideo();
       destroyHls();
 
+      const target = useProxy ? wrapWithProxy(url) : url;
+      const attemptLabel = useProxy ? "(proxied)" : "(direct)";
+
       if (videoEl.canPlayType("application/vnd.apple.mpegurl")) {
-        console.log(`[video] attempting native playback: ${url}`);
+        console.log(`[video] attempting native playback ${attemptLabel}: ${target}`);
         videoEl.onerror = (e) => {
           console.error("[video] native error", e);
-          setStatus("Native playback error. See console for details.");
+          setStatus(`Native playback error on ${attemptLabel}. See console for details.`);
+          if (!useProxy) {
+            console.warn("[video] retrying with CORS proxy due to native error");
+            loadStream(url, { useProxy: true, attempt: attempt + 1 });
+          }
         };
-        videoEl.src = url;
+        videoEl.src = target;
         videoEl.play().catch(err => setStatus(`Playback failed: ${err.message}`));
-        setStatus("Playing stream natively.");
+        setStatus(`Playing stream natively ${attemptLabel}.`);
       } else if (Hls.isSupported()) {
-        console.log(`[video] initializing hls.js for ${url}`);
-        hlsInstance = new Hls({ debug: false });
+        console.log(`[video] initializing hls.js ${attemptLabel}: ${target}`);
+        hlsInstance = new Hls({
+          debug: false,
+          xhrSetup: (xhr) => {
+            xhr.addEventListener("error", (e) => console.error("[hls][xhr] error", e));
+            xhr.addEventListener("load", () => console.log("[hls][xhr] loaded", xhr.responseURL));
+          }
+        });
         hlsInstance.on(Hls.Events.ERROR, (evt, data) => {
           console.error("[hls] error", data);
-          setStatus(`Stream error: ${data?.details || data?.type || "unknown"}`);
+          setStatus(`Stream error on ${attemptLabel}: ${data?.details || data?.type || "unknown"}`);
+          const fatalNetwork = data?.fatal && (data?.type === "networkError" || data?.details?.includes("network"));
+          if (!useProxy && fatalNetwork) {
+            console.warn("[hls] retrying with CORS proxy due to network/manifest error");
+            destroyHls();
+            loadStream(url, { useProxy: true, attempt: attempt + 1 });
+          }
         });
         hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log("[hls] manifest parsed");
+          console.log(`[hls] manifest parsed ${attemptLabel}`);
           videoEl.play().catch(err => setStatus(`Playback failed: ${err.message}`));
-          setStatus("Playing stream via hls.js.");
+          setStatus(`Playing stream via hls.js ${attemptLabel}.`);
         });
-        hlsInstance.loadSource(url);
+        hlsInstance.loadSource(target);
         hlsInstance.attachMedia(videoEl);
       } else {
         setStatus("HLS not supported in this browser.");
