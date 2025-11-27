@@ -238,23 +238,17 @@
       return `${url}${separator}t=${Date.now()}`;
     }
 
-    function showSnapshot(baseUrl, isFallback = false) {
+    function showSnapshot(baseUrl) {
       destroyHls();
       videoEl.pause();
       videoEl.removeAttribute("src");
       videoEl.style.display = "none";
       snapshotImg.style.display = "block";
 
-      const snapshotUrl = addCacheBuster(baseUrl);
+      const snapshotUrl = addCacheBuster(wrapWithProxy(baseUrl));
       console.log(`[snapshot] loading ${snapshotUrl}`);
       snapshotImg.onerror = (e) => {
         console.error("[snapshot] failed to load", e);
-        if (!isFallback) {
-          const fallbackBase = wrapWithProxy(baseUrl);
-          console.warn("[snapshot] retrying via proxy", fallbackBase);
-          startSnapshotLoop(fallbackBase, true);
-          return;
-        }
         setStatus("Snapshot failed to load. Check console for details.");
       };
       snapshotImg.onload = () => {
@@ -264,10 +258,10 @@
       setStatus("Showing sensor snapshot (refreshes every 15 seconds).");
     }
 
-    function startSnapshotLoop(baseUrl, isFallback = false) {
-      activeSnapshotBase = baseUrl;
+    function startSnapshotLoop(baseUrl) {
+      activeSnapshotBase = wrapWithProxy(baseUrl);
       if (refreshTimer) clearInterval(refreshTimer);
-      const loader = () => showSnapshot(activeSnapshotBase, isFallback);
+      const loader = () => showSnapshot(activeSnapshotBase);
       loader();
       refreshTimer = setInterval(loader, snapshotIntervalMs);
     }
@@ -300,7 +294,7 @@
       };
     }
 
-    function loadStream(url, { useProxy = false, attempt = 1 } = {}) {
+    function loadStream(url, { useProxy = true, attempt = 1 } = {}) {
       showVideo();
       destroyHls();
 
@@ -362,8 +356,8 @@
       const pictureRaw = props.picture_timestamp || props.picture_time || props.picture_timestamp_utc || props.picture_time_utc || props.picturetime || props.picture_timestamp_epoch || props.picture_timestamp_local;
       const updated = toCst(updatedRaw);
       const pictureTime = toCst(pictureRaw);
-      const snapshotUrl = `https://oktrafficradar.org/hrserver/${id}/latest.jpg`;
-      const thumbnail = addCacheBuster(snapshotUrl);
+      const snapshotBase = `https://oktrafficradar.org/hrserver/${id}/latest.jpg`;
+      const thumbnail = addCacheBuster(wrapWithProxy(snapshotBase));
 
       return `
         <div>
