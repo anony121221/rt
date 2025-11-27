@@ -171,7 +171,7 @@
       <h1>Oklahoma Traffic Cameras</h1>
       <p>
         Orange = sensor snapshot cameras (still image).<br>
-        Blue = main video cameras (HLS m3u8 streams).
+        Blue = main video cameras (HLS m3u8 streams).<br>
         Click a point to show its image or play its stream.
       </p>
 
@@ -186,7 +186,9 @@
         </div>
       </div>
 
-      <label for="m3u8-url" style="font-size:11px;font-weight:500;margin-top:6px;">m3u8 URL (manual override)</label>
+      <label for="m3u8-url" style="font-size:11px;font-weight:500;margin-top:6px;">
+        m3u8 URL (manual override)
+      </label>
       <input
         id="m3u8-url"
         type="text"
@@ -215,11 +217,11 @@
 
   <script>
     window.addEventListener('load', () => {
-      const statusEl = document.getElementById('status');
-      const videoEl = document.getElementById('video-player');
+      const statusEl   = document.getElementById('status');
+      const videoEl    = document.getElementById('video-player');
       const snapshotEl = document.getElementById('snapshot-image');
-      const inputEl = document.getElementById('m3u8-url');
-      const loadBtn = document.getElementById('load-btn');
+      const inputEl    = document.getElementById('m3u8-url');
+      const loadBtn    = document.getElementById('load-btn');
 
       function setStatus(msg) {
         if (statusEl) statusEl.textContent = msg;
@@ -242,7 +244,8 @@
       }).addTo(map);
 
       // HLS / video player helpers
-      let hlsInstance = null;
+      let hlsInstance      = null;
+      let snapshotInterval = null;
 
       function destroyHls() {
         if (hlsInstance) {
@@ -251,22 +254,47 @@
         }
       }
 
-      function showSnapshot(url) {
+      function showSnapshot(baseUrl) {
+        // baseUrl should already be the proxied latest.jpg without cache-buster
         destroyHls();
+        if (snapshotInterval) {
+          clearInterval(snapshotInterval);
+          snapshotInterval = null;
+        }
+
+        // Hide video
         if (videoEl) {
           try { videoEl.pause(); } catch (e) {}
           videoEl.removeAttribute('src');
           videoEl.style.display = 'none';
         }
-        if (snapshotEl) {
-          snapshotEl.src = (url ? url : '');
-          snapshotEl.style.display = url ? 'block' : 'none';
+
+        if (!snapshotEl || !baseUrl) {
+          setStatus('No snapshot image for this sensor.');
+          return;
         }
+
+        snapshotEl.style.display = 'block';
+
+        function refreshOnce() {
+          // Add cache-buster so we always get the latest
+          const urlWithTs = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 't=' + Date.now();
+          snapshotEl.src = urlWithTs;
+        }
+
+        refreshOnce();
+        setStatus('Showing sensor snapshot (auto-refresh every 15s).');
+
+        snapshotInterval = setInterval(refreshOnce, 15000);
       }
 
       function showVideo() {
-        if (snapshotEl) snapshotEl.style.display = 'none';
-        if (videoEl) videoEl.style.display = 'block';
+        if (snapshotEl) {
+          snapshotEl.style.display = 'none';
+        }
+        if (videoEl) {
+          videoEl.style.display = 'block';
+        }
       }
 
       function loadStream(url) {
@@ -278,6 +306,12 @@
         if (!videoEl) {
           setStatus('Video element not found in DOM.');
           return;
+        }
+
+        // When we play video, stop auto-updating snapshots
+        if (snapshotInterval) {
+          clearInterval(snapshotInterval);
+          snapshotInterval = null;
         }
 
         showVideo();
@@ -322,7 +356,7 @@
 
           hlsInstance.on(Hls.Events.ERROR, (event, data) => {
             console.error('HLS.js error:', data);
-            setStatus('HLS error: ' + (data && data.details ? data.details : 'unknown'));
+            setStatus('HLS error: ' + (data && data.details ? data.details : 'manifestLoadError / CORS / offline'));
           });
         } else {
           setStatus('This browser does not support HLS and hls.js is not available.');
@@ -349,7 +383,7 @@
 
       // 2) Load sensor + video GeoJSON
       const sensorUrl = 'https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/sensorcameras.geojson';
-      const videoUrl = 'https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/oklahoma.geojson';
+      const videoUrl  = 'https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/oklahoma.geojson';
 
       Promise.all([
         fetch(sensorUrl).then((r) => {
@@ -361,126 +395,137 @@
           return r.json();
         })
       ])
-        .then(([sensorData, videoData]) => {
-          // SENSOR CAMERAS (ORANGE + IMAGE)
-          const sensorLayer = L.geoJSON(sensorData, {
-            pointToLayer: (feature, latlng) =>
-              L.circleMarker(latlng, {
-                radius: 7,
-                color: '#fb923c',
-                fillColor: '#f97316',
-                fillOpacity: 0.95,
-                weight: 2
-              }),
-            onEachFeature: (feature, layer) => {
-              const p = feature.properties || {};
-              // Build auto-updating latest snapshot URL
-              let img = p.imagePath;
-              const radarId = p.id;
-              img = `https://corsproxy.io/?http://oktrafficradar.org/hrserver/${radarId}/latest.jpg?t=${Date.now()}`;
-              // Use proxy to bypass HTTPS mixed-content blocking
-              if (img && img.startsWith('http://')) {
-                img = 'https://corsproxy.io/?' + encodeURIComponent(img);
+      .then(([sensorData, videoData]) => {
+        // SENSOR CAMERAS (ORANGE + IMAGE)
+        const sensorLayer = L.geoJSON(sensorData, {
+          pointToLayer: (feature, latlng) =>
+            L.circleMarker(latlng, {
+              radius: 7,
+              color: '#fb923c',
+              fillColor: '#f97316',
+              fillOpacity: 0.95,
+              weight: 2
+            }),
+          onEachFeature: (feature, layer) => {
+            const p = feature.properties || {};
+            const radarId = p.id;
+
+            // Build latest snapshot URL for this radarId
+            let rawUrl = null;
+            if (radarId != null) {
+              rawUrl = `http://oktrafficradar.org/hrserver/${radarId}/latest.jpg`;
+            } else if (p.imagePath) {
+              rawUrl = p.imagePath;
+            }
+
+            let baseImgUrl = null;
+            if (rawUrl) {
+              // Proxy it through HTTPS to avoid mixed content
+              baseImgUrl = 'https://corsproxy.io/?' + encodeURIComponent(rawUrl);
+            }
+
+            // Format UTC → CST helper
+            const toCST = (utcString) => {
+              try {
+                return new Date(utcString).toLocaleString('en-US', {
+                  timeZone: 'America/Chicago',
+                  hour12: true,
+                  year: 'numeric',
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit'
+                });
+              } catch (e) {
+                return utcString;
               }
+            };
 
-              // Format UTC → CST helper
-              const toCST = (utcString) => {
-                try {
-                  return new Date(utcString).toLocaleString('en-US', {
-                    timeZone: 'America/Chicago',
-                    hour12: true,
-                    year: 'numeric',
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit'
-                  });
-                } catch (e) {
-                  return utcString;
-                }
-              };
-
-              let html = `<div style='font-size:13px;line-height:1.35;'>`
+            let html = `<div style='font-size:13px;line-height:1.35;'>`
               + `<strong>ID:</strong> ${p.id}<br>`
               + `<strong>Location:</strong> ${p.locationName}<br>`
               + `<strong>Temperature:</strong> ${p.temperature}°F<br>`
               + `<strong>Resolution:</strong> ${p.resolution}<br>`
               + `<strong>Last Updated (CST):</strong> ${toCST(p.updatedAt)}<br>`
-              + `<strong>Picture Time (CST):</strong> ${toCST(p.pictureTime)}<br>`
-              + `<br><img src='${img}' style='width:100%;border-radius:8px;'>`;
-              html += `</div>`;
-              layer.bindPopup(html);(html);(html || 'Sensor camera');
+              + `<strong>Picture Time (CST):</strong> ${toCST(p.pictureTime)}<br>`;
 
+            if (baseImgUrl) {
+              const popupImgUrl = baseImgUrl + '?t=' + Date.now();
+              html += `<br><img src="${popupImgUrl}" style="width:100%;border-radius:8px;">`;
+            }
+
+            html += `</div>`;
+            layer.bindPopup(html || 'Sensor camera');
+
+            layer.on('click', () => {
+              if (baseImgUrl) {
+                showSnapshot(baseImgUrl);
+              } else {
+                setStatus('No snapshot image for this sensor.');
+              }
+            });
+          }
+        }).addTo(map);
+
+        // VIDEO CAMERAS (BLUE + STREAM)
+        const videoLayer = L.geoJSON(videoData, {
+          pointToLayer: (feature, latlng) =>
+            L.circleMarker(latlng, {
+              radius: 7,
+              color: '#3b82f6',
+              fillColor: '#60a5fa',
+              fillOpacity: 0.95,
+              weight: 2
+            }),
+          onEachFeature: (feature, layer) => {
+            const p = feature.properties || {};
+            const stream = p.stream_url;
+
+            let html = '';
+            for (const [k, v] of Object.entries(p)) {
+              html += `<strong>${k}</strong>: ${v}<br>`;
+            }
+            layer.bindPopup(html || 'Video camera');
+
+            if (stream) {
               layer.on('click', () => {
-                if (img) {
-                  showSnapshot(img);
-                  setStatus('Showing sensor snapshot');
-                } else {
-                  setStatus('No snapshot image for this sensor.');
-                }
+                if (inputEl) inputEl.value = stream;
+                loadStream(stream);
+                setStatus('Attempting to play video stream (may fail due to CORS / auth).');
               });
             }
-          }).addTo(map);
+          }
+        }).addTo(map);
 
-          // VIDEO CAMERAS (BLUE + STREAM)
-          const videoLayer = L.geoJSON(videoData, {
-            pointToLayer: (feature, latlng) =>
-              L.circleMarker(latlng, {
-                radius: 7,
-                color: '#3b82f6',
-                fillColor: '#60a5fa',
-                fillOpacity: 0.95,
-                weight: 2
-              }),
-            onEachFeature: (feature, layer) => {
-              const p = feature.properties || {};
-              const stream = p.stream_url;
-
-              let html = '';
-              for (const [k, v] of Object.entries(p)) {
-                html += `<strong>${k}</strong>: ${v}<br>`;
-              }
-              layer.bindPopup(html || 'Video camera');
-
-              if (stream) {
-                layer.on('click', () => {
-                  if (inputEl) inputEl.value = stream;
-                  loadStream(stream);
-                  setStatus('Attempting to play video stream');
-                });
-              }
+        // Fit map to all features
+        const allLatLngs = [];
+        if (sensorData && sensorData.features) {
+          sensorData.features.forEach((f) => {
+            if (f.geometry && f.geometry.type === 'Point') {
+              const [lon, lat] = f.geometry.coordinates;
+              allLatLngs.push([lat, lon]);
             }
-          }).addTo(map);
+          });
+        }
+        if (videoData && videoData.features) {
+          videoData.features.forEach((f) => {
+            if (f.geometry && f.geometry.type === 'Point') {
+              const [lon, lat] = f.geometry.coordinates;
+              allLatLngs.push([lat, lon]);
+            }
+          });
+        }
+        if (allLatLngs.length > 0) {
+          map.fitBounds(allLatLngs);
+        }
 
-          // Fit map to all features
-          const allLatLngs = [];
-          if (sensorData && sensorData.features) {
-            sensorData.features.forEach((f) => {
-              if (f.geometry && f.geometry.type === 'Point') {
-                const [lon, lat] = f.geometry.coordinates;
-                allLatLngs.push([lat, lon]);
-              }
-            });
-          }
-          if (videoData && videoData.features) {
-            videoData.features.forEach((f) => {
-              if (f.geometry && f.geometry.type === 'Point') {
-                const [lon, lat] = f.geometry.coordinates;
-                allLatLngs.push([lat, lon]);
-              }
-            });
-          }
-          if (allLatLngs.length > 0) {
-            map.fitBounds(allLatLngs);
-          }
-
-          setStatus('Loaded sensor + video cameras.');
-        })
-        .catch((err) => {
-          console.error('Error loading GeoJSON:', err);
-          setStatus('Error loading GeoJSON: ' + err.message);
-        });
+        setStatus('Loaded sensor + video cameras.');
+      })
+      .catch((err) => {
+        console.error('Error loading GeoJSON:', err);
+        setStatus('Error loading GeoJSON: ' + err.message);
+      });
     });
   </script>
 </body>
