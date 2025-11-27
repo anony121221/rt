@@ -205,10 +205,12 @@
 
     function setStatus(message) {
       statusBox.textContent = message;
+      console.log(`[status] ${message}`);
     }
 
     function destroyHls() {
       if (hlsInstance) {
+        console.log("[hls] destroying existing instance");
         hlsInstance.destroy();
         hlsInstance = null;
       }
@@ -234,7 +236,16 @@
       snapshotImg.style.display = "block";
 
       const snapshotUrl = addCacheBuster(url);
-      snapshotImg.src = `${CORS_PROXY}${encodeURIComponent(snapshotUrl)}`;
+      const proxied = `${CORS_PROXY}${encodeURIComponent(snapshotUrl)}`;
+      console.log(`[snapshot] loading ${proxied}`);
+      snapshotImg.onerror = (e) => {
+        console.error("[snapshot] failed to load", e);
+        setStatus("Snapshot failed to load. Check console for details.");
+      };
+      snapshotImg.onload = () => {
+        console.log("[snapshot] loaded successfully");
+      };
+      snapshotImg.src = proxied;
       setStatus("Showing sensor snapshot (refreshes every 15 seconds).");
     }
 
@@ -258,20 +269,28 @@
       destroyHls();
 
       if (videoEl.canPlayType("application/vnd.apple.mpegurl")) {
+        console.log(`[video] attempting native playback: ${url}`);
+        videoEl.onerror = (e) => {
+          console.error("[video] native error", e);
+          setStatus("Native playback error. See console for details.");
+        };
         videoEl.src = url;
         videoEl.play().catch(err => setStatus(`Playback failed: ${err.message}`));
         setStatus("Playing stream natively.");
       } else if (Hls.isSupported()) {
-        hlsInstance = new Hls();
-        hlsInstance.loadSource(url);
-        hlsInstance.attachMedia(videoEl);
+        console.log(`[video] initializing hls.js for ${url}`);
+        hlsInstance = new Hls({ debug: false });
+        hlsInstance.on(Hls.Events.ERROR, (evt, data) => {
+          console.error("[hls] error", data);
+          setStatus(`Stream error: ${data?.details || data?.type || "unknown"}`);
+        });
         hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          console.log("[hls] manifest parsed");
           videoEl.play().catch(err => setStatus(`Playback failed: ${err.message}`));
           setStatus("Playing stream via hls.js.");
         });
-        hlsInstance.on(Hls.Events.ERROR, (evt, data) => {
-          setStatus(`Stream error: ${data?.details || data?.type || "unknown"}`);
-        });
+        hlsInstance.loadSource(url);
+        hlsInstance.attachMedia(videoEl);
       } else {
         setStatus("HLS not supported in this browser.");
       }
@@ -312,12 +331,27 @@
         maxZoom: 19
       }).addTo(map);
 
-      const responses = await Promise.all([
-        fetch(sensorUrl).then(r => r.json()),
-        fetch(videoUrl).then(r => r.json())
-      ]);
+      let sensorData, videoData;
+      try {
+        const responses = await Promise.all([
+          fetch(sensorUrl),
+          fetch(videoUrl)
+        ]);
+        responses.forEach((resp, idx) => {
+          if (!resp.ok) {
+            throw new Error(`GeoJSON request ${idx} failed with ${resp.status}`);
+          }
+        });
+        sensorData = await responses[0].json();
+        videoData = await responses[1].json();
+        console.log("[geojson] loaded sensor and video layers");
+      } catch (err) {
+        console.error("[geojson] failed to load", err);
+        setStatus("Failed to load GeoJSON data. See console for details.");
+        return;
+      }
 
-      sensorLayer = L.geoJSON(responses[0], {
+      sensorLayer = L.geoJSON(sensorData, {
         pointToLayer: (feature, latlng) =>
           L.circleMarker(latlng, {
             radius: 7,
@@ -336,11 +370,12 @@
             const snapshotUrl = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
             scheduleSnapshot(snapshotUrl);
             setStatus(`Loading snapshot for sensor ${id}...`);
+            console.log(`[sensor] clicked sensor ${id}`);
           });
         }
       }).addTo(map);
 
-      videoLayer = L.geoJSON(responses[1], {
+      videoLayer = L.geoJSON(videoData, {
         pointToLayer: (feature, latlng) =>
           L.circleMarker(latlng, {
             radius: 7,
@@ -353,9 +388,11 @@
           layer.on("click", () => {
             const url = feature.properties.stream_url || feature.properties.url || feature.properties.hls;
             if (url) {
+              console.log(`[video] clicked stream ${url}`);
               loadStream(url);
               setStatus(`Loading video stream for ${feature.properties.name || "camera"}...`);
             } else {
+              console.warn("[video] missing stream_url for feature", feature.properties);
               setStatus("No stream URL provided for this camera.");
             }
           });
