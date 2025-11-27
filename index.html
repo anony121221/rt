@@ -1,34 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8">
+  <title>OKTraffic Camera Test</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 
-<body style="background:black;">
+<body style="background:black; margin:0; padding:20px;">
+  <h2 style="color:white;">OKTraffic Camera Test</h2>
 
-<h2 style="color:white;">OKTraffic Camera — Direct HLS Test</h2>
+  <video id="video" width="640" height="360" controls autoplay muted></video>
 
-<video id="video" width="640" height="360" controls autoplay muted></video>
+  <script>
+    const video = document.getElementById('video');
 
-<script>
-  const video = document.getElementById('video');
-  const url = "https://oktraffic.org/streams/delay-stream/437b9cce3e0310eb.stream/playlist.m3u8";
+    // CHANGE THIS TO ANY OKDOT STREAM
+    const url = "https://oktraffic.org/streams/delay-stream/a60cbec68a5d7afa.stream/playlist.m3u8";
 
-  if (Hls.isSupported()) {
-    const hls = new Hls({
-      enableWorker: true,
-      lowLatencyMode: true,
-      debug: false
-    });
-    hls.loadSource(url);
-    hls.attachMedia(video);
-    hls.on(Hls.Events.ERROR, function(event, data) {
-      console.log("HLS ERROR:", data);
-    });
-  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-    video.src = url;
-  }
-</script>
-
+    if (Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(url);
+      hls.attachMedia(video);
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url;
+    }
+  </script>
 </body>
 </html>
