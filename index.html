@@ -189,6 +189,7 @@
     let refreshTimer = null;
     let sensorLayer;
     let videoLayer;
+    let activeSnapshotBase = null;
 
     const statusBox = document.getElementById("status");
     const snapshotImg = document.getElementById("snapshot");
@@ -223,6 +224,8 @@
         date = new Date(value);
       } else if (typeof value === "string" && /^\d{10}$/.test(value.trim())) {
         date = new Date(Number(value) * 1000);
+      } else if (!Number.isNaN(Number(value)) && value.trim && value.trim() !== "") {
+        date = new Date(Number(value));
       } else {
         date = new Date(value);
       }
@@ -235,17 +238,23 @@
       return `${url}${separator}t=${Date.now()}`;
     }
 
-    function showSnapshot(url) {
+    function showSnapshot(baseUrl, isFallback = false) {
       destroyHls();
       videoEl.pause();
       videoEl.removeAttribute("src");
       videoEl.style.display = "none";
       snapshotImg.style.display = "block";
 
-      const snapshotUrl = addCacheBuster(url);
+      const snapshotUrl = addCacheBuster(baseUrl);
       console.log(`[snapshot] loading ${snapshotUrl}`);
       snapshotImg.onerror = (e) => {
         console.error("[snapshot] failed to load", e);
+        if (!isFallback && baseUrl.startsWith("https://")) {
+          const fallbackBase = baseUrl.replace(/^https:/, "http:");
+          console.warn("[snapshot] https failed; retrying over http", fallbackBase);
+          startSnapshotLoop(fallbackBase, true);
+          return;
+        }
         setStatus("Snapshot failed to load. Check console for details.");
       };
       snapshotImg.onload = () => {
@@ -255,10 +264,12 @@
       setStatus("Showing sensor snapshot (refreshes every 15 seconds).");
     }
 
-    function scheduleSnapshot(url) {
+    function startSnapshotLoop(baseUrl, isFallback = false) {
+      activeSnapshotBase = baseUrl;
       if (refreshTimer) clearInterval(refreshTimer);
-      showSnapshot(url);
-      refreshTimer = setInterval(() => showSnapshot(url), snapshotIntervalMs);
+      const loader = () => showSnapshot(activeSnapshotBase, isFallback);
+      loader();
+      refreshTimer = setInterval(loader, snapshotIntervalMs);
     }
 
     function showVideo() {
@@ -330,8 +341,8 @@
       const name = props.location_name || props.name || props.location || "Sensor";
       const temperature = props.temperature_f || props.temperature || "—";
       const resolution = props.resolution || "—";
-      const updatedRaw = props.last_updated || props.last_update || props.last_updated_utc || props.last_update_utc || props.lastupdated || props.lastupdate;
-      const pictureRaw = props.picture_timestamp || props.picture_time || props.picture_timestamp_utc || props.picture_time_utc || props.picturetime;
+      const updatedRaw = props.last_updated || props.last_update || props.last_updated_utc || props.last_update_utc || props.lastupdated || props.lastupdate || props.last_updated_time || props.updated_time;
+      const pictureRaw = props.picture_timestamp || props.picture_time || props.picture_timestamp_utc || props.picture_time_utc || props.picturetime || props.picture_timestamp_epoch || props.picture_timestamp_local;
       const updated = toCst(updatedRaw);
       const pictureTime = toCst(pictureRaw);
       const snapshotUrl = `https://oktrafficradar.org/hrserver/${id}/latest.jpg`;
@@ -399,7 +410,7 @@
               return;
             }
             const snapshotUrl = `https://oktrafficradar.org/hrserver/${id}/latest.jpg`;
-            scheduleSnapshot(snapshotUrl);
+            startSnapshotLoop(snapshotUrl);
             setStatus(`Loading snapshot for sensor ${id}...`);
             console.log(`[sensor] clicked sensor ${id}`);
           });
