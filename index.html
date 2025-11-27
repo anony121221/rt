@@ -1,432 +1,83 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Oklahoma Traffic Cameras</title>
+  <title>Oklahoma Cameras Map</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Leaflet CSS -->
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-    crossorigin=""
   />
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-    crossorigin=""
-  ></script>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.12/dist/hls.min.js"></script>
+
   <style>
-    :root {
-      color-scheme: dark;
-      --bg: #0b1220;
-      --panel: #111827;
-      --border: #1f2937;
-      --muted: #9ca3af;
-      --accent: #60a5fa;
-      --danger: #f87171;
-      --sensor: #f97316;
-      --video: #3b82f6;
-    }
-    * {
-      box-sizing: border-box;
+    html, body {
+      height: 100%;
       margin: 0;
-      padding: 0;
-    }
-    body {
-      font-family: "Inter", system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: #e5e7eb;
-      height: 100vh;
-      display: flex;
+      background: #0b0b0d;
     }
     #map {
-      flex: 1 1 auto;
-      height: 100vh;
-    }
-    #sidebar {
-      width: 380px;
-      background: var(--panel);
-      border-left: 1px solid var(--border);
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    h1 {
-      font-size: 1.4rem;
-      color: var(--accent);
-    }
-    p {
-      color: var(--muted);
-      line-height: 1.4;
-      font-size: 0.95rem;
-    }
-    .legend {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      font-size: 0.9rem;
-      color: #d1d5db;
-    }
-    .legend span {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-    }
-    input[type="text"] {
       width: 100%;
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: #0f172a;
-      color: #e5e7eb;
+      height: 100%;
     }
-    button {
-      padding: 10px 12px;
-      border-radius: 8px;
-      border: none;
-      background: var(--accent);
-      color: #0b1220;
-      font-weight: 700;
-      cursor: pointer;
-      transition: background 0.2s ease;
+    .popup {
+      font-family: system-ui, sans-serif;
+      font-size: 14px;
+      width: 250px;
     }
-    button:hover {
-      background: #3b82f6;
-      color: white;
-    }
-    .media-box {
-      background: #0f172a;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
-      min-height: 240px;
-      display: grid;
-      place-items: center;
-    }
-    #snapshot {
-      max-width: 100%;
-      max-height: 320px;
-      border-radius: 8px;
-      display: none;
-    }
-    #videoPlayer {
-      width: 100%;
-      max-height: 360px;
-      border-radius: 8px;
-      background: black;
-      display: none;
-    }
-    #status {
-      min-height: 48px;
-      padding: 10px;
-      border-radius: 8px;
-      background: #0b1220;
-      border: 1px solid var(--border);
-      color: #e5e7eb;
-      font-size: 0.9rem;
-      line-height: 1.3;
-    }
-    .panel-section {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    .meta {
-      font-size: 0.85rem;
-      color: var(--muted);
-    }
-    .popup-thumb {
-      width: 180px;
-      height: 120px;
-      object-fit: cover;
-      border-radius: 6px;
-      display: block;
-      margin-top: 8px;
-      border: 1px solid var(--border);
+    .popup a {
+      word-wrap: break-word;
+      color: #00e0ff;
     }
   </style>
 </head>
+
 <body>
   <div id="map"></div>
-  <div id="sidebar">
-    <div class="panel-section">
-      <h1>Oklahoma Traffic Cameras</h1>
-      <p>Click map markers to view live snapshots or video streams. Snapshots refresh automatically every 15 seconds.</p>
-      <div class="legend">
-        <span><span class="dot" style="background: var(--sensor);"></span>Sensor snapshots</span>
-        <span><span class="dot" style="background: var(--video);"></span>Video streams</span>
-      </div>
-    </div>
-    <div class="panel-section">
-      <label for="manualUrl" class="meta">Manual m3u8 URL</label>
-      <input type="text" id="manualUrl" placeholder="https://example.com/live.m3u8" />
-      <button id="loadBtn">Load Stream</button>
-    </div>
-    <div class="panel-section">
-      <div class="media-box">
-        <img id="snapshot" alt="Camera snapshot" />
-        <video id="videoPlayer" controls playsinline></video>
-      </div>
-      <div id="status">Select a marker to load media.</div>
-    </div>
-  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <script>
-    const sensorUrl = "https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/sensorcameras.geojson";
-    const videoUrl = "https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/oklahoma.geojson";
-    const snapshotIntervalMs = 15000;
-    const CORS_PROXY = "https://corsproxy.io/?";
+    // Initialize map
+    const map = L.map("map").setView([35.5, -97.5], 7);
 
-    let map;
-    let hlsInstance = null;
-    let refreshTimer = null;
-    let sensorLayer;
-    let videoLayer;
+    // Base map tiles
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+    }).addTo(map);
 
-    const statusBox = document.getElementById("status");
-    const snapshotImg = document.getElementById("snapshot");
-    const videoEl = document.getElementById("videoPlayer");
-    const manualInput = document.getElementById("manualUrl");
-    document.getElementById("loadBtn").addEventListener("click", () => {
-      const url = manualInput.value.trim();
-      if (url) {
-        loadStream(url);
-      } else {
-        setStatus("Enter an m3u8 URL to play.");
-      }
-    });
-
-    function setStatus(message) {
-      statusBox.textContent = message;
-      console.log(`[status] ${message}`);
-    }
-
-    function destroyHls() {
-      if (hlsInstance) {
-        console.log("[hls] destroying existing instance");
-        hlsInstance.destroy();
-        hlsInstance = null;
-      }
-    }
-
-    function toCst(value) {
-      if (!value) return "—";
-      const date = new Date(value);
-      if (isNaN(date)) return "—";
-      return date.toLocaleString("en-US", { timeZone: "America/Chicago" });
-    }
-
-    function addCacheBuster(url) {
-      const separator = url.includes("?") ? "&" : "?";
-      return `${url}${separator}t=${Date.now()}`;
-    }
-
-    function showSnapshot(url) {
-      destroyHls();
-      videoEl.pause();
-      videoEl.removeAttribute("src");
-      videoEl.style.display = "none";
-      snapshotImg.style.display = "block";
-
-      const snapshotUrl = addCacheBuster(url);
-      const proxied = `${CORS_PROXY}${encodeURIComponent(snapshotUrl)}`;
-      console.log(`[snapshot] loading ${proxied}`);
-      snapshotImg.onerror = (e) => {
-        console.error("[snapshot] failed to load", e);
-        setStatus("Snapshot failed to load. Check console for details.");
-      };
-      snapshotImg.onload = () => {
-        console.log("[snapshot] loaded successfully");
-      };
-      snapshotImg.src = proxied;
-      setStatus("Showing sensor snapshot (refreshes every 15 seconds).");
-    }
-
-    function scheduleSnapshot(url) {
-      if (refreshTimer) clearInterval(refreshTimer);
-      showSnapshot(url);
-      refreshTimer = setInterval(() => showSnapshot(url), snapshotIntervalMs);
-    }
-
-    function showVideo() {
-      if (refreshTimer) {
-        clearInterval(refreshTimer);
-        refreshTimer = null;
-      }
-      snapshotImg.style.display = "none";
-      videoEl.style.display = "block";
-    }
-
-    function wrapWithProxy(url) {
-      return url.startsWith(CORS_PROXY) ? url : `${CORS_PROXY}${encodeURIComponent(url)}`;
-    }
-
-    function loadStream(url, { useProxy = false, attempt = 1 } = {}) {
-      showVideo();
-      destroyHls();
-
-      const target = useProxy ? wrapWithProxy(url) : url;
-      const attemptLabel = useProxy ? "(proxied)" : "(direct)";
-
-      if (videoEl.canPlayType("application/vnd.apple.mpegurl")) {
-        console.log(`[video] attempting native playback ${attemptLabel}: ${target}`);
-        videoEl.onerror = (e) => {
-          console.error("[video] native error", e);
-          setStatus(`Native playback error on ${attemptLabel}. See console for details.`);
-          if (!useProxy) {
-            console.warn("[video] retrying with CORS proxy due to native error");
-            loadStream(url, { useProxy: true, attempt: attempt + 1 });
-          }
-        };
-        videoEl.src = target;
-        videoEl.play().catch(err => setStatus(`Playback failed: ${err.message}`));
-        setStatus(`Playing stream natively ${attemptLabel}.`);
-      } else if (Hls.isSupported()) {
-        console.log(`[video] initializing hls.js ${attemptLabel}: ${target}`);
-        hlsInstance = new Hls({
-          debug: false,
-          xhrSetup: (xhr) => {
-            xhr.addEventListener("error", (e) => console.error("[hls][xhr] error", e));
-            xhr.addEventListener("load", () => console.log("[hls][xhr] loaded", xhr.responseURL));
-          }
-        });
-        hlsInstance.on(Hls.Events.ERROR, (evt, data) => {
-          console.error("[hls] error", data);
-          setStatus(`Stream error on ${attemptLabel}: ${data?.details || data?.type || "unknown"}`);
-          const fatalNetwork = data?.fatal && (data?.type === "networkError" || data?.details?.includes("network"));
-          if (!useProxy && fatalNetwork) {
-            console.warn("[hls] retrying with CORS proxy due to network/manifest error");
-            destroyHls();
-            loadStream(url, { useProxy: true, attempt: attempt + 1 });
-          }
-        });
-        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-          console.log(`[hls] manifest parsed ${attemptLabel}`);
-          videoEl.play().catch(err => setStatus(`Playback failed: ${err.message}`));
-          setStatus(`Playing stream via hls.js ${attemptLabel}.`);
-        });
-        hlsInstance.loadSource(target);
-        hlsInstance.attachMedia(videoEl);
-      } else {
-        setStatus("HLS not supported in this browser.");
-      }
-    }
-
-    function buildSensorPopup(props) {
-      const id = props.id || props.camera_id || "Unknown";
-      const name = props.location_name || props.name || props.location || "Sensor";
-      const temperature = props.temperature_f || props.temperature || "—";
-      const resolution = props.resolution || "—";
-      const updated = toCst(props.last_updated || props.last_update);
-      const pictureTime = toCst(props.picture_timestamp || props.picture_time);
-      const snapshotUrl = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
-      const thumbnail = `${CORS_PROXY}${encodeURIComponent(addCacheBuster(snapshotUrl))}`;
-
-      return `
-        <div>
-          <strong>ID:</strong> ${id}<br />
-          <strong>Location:</strong> ${name}<br />
-          <strong>Temperature:</strong> ${temperature} °F<br />
-          <strong>Resolution:</strong> ${resolution}<br />
-          <strong>Last updated:</strong> ${updated}<br />
-          <strong>Picture timestamp:</strong> ${pictureTime}<br />
-          <img class="popup-thumb" src="${thumbnail}" alt="${name}" />
-        </div>
-      `;
-    }
-
-    function buildVideoPopup(props) {
-      const entries = Object.entries(props || {}).map(([k, v]) => `<div><strong>${k}</strong>: ${v}</div>`).join("");
-      return `<div>${entries || "No details"}</div>`;
-    }
-
-    async function loadLayers() {
-      map = L.map("map").setView([35.5, -97.5], 7);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "&copy; OpenStreetMap contributors",
-        maxZoom: 19
-      }).addTo(map);
-
-      let sensorData, videoData;
-      try {
-        const responses = await Promise.all([
-          fetch(sensorUrl),
-          fetch(videoUrl)
-        ]);
-        responses.forEach((resp, idx) => {
-          if (!resp.ok) {
-            throw new Error(`GeoJSON request ${idx} failed with ${resp.status}`);
-          }
-        });
-        sensorData = await responses[0].json();
-        videoData = await responses[1].json();
-        console.log("[geojson] loaded sensor and video layers");
-      } catch (err) {
-        console.error("[geojson] failed to load", err);
-        setStatus("Failed to load GeoJSON data. See console for details.");
-        return;
-      }
-
-      sensorLayer = L.geoJSON(sensorData, {
-        pointToLayer: (feature, latlng) =>
-          L.circleMarker(latlng, {
-            radius: 7,
-            color: "#f97316",
-            fillColor: "#f97316",
-            fillOpacity: 0.9
+    // Load your GeoJSON
+    fetch("https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/test.geojson")
+      .then(res => res.json())
+      .then(data => {
+        L.geoJSON(data, {
+          pointToLayer: (feature, latlng) => L.circleMarker(latlng, {
+            radius: 6,
+            fillColor: "#00e0ff",
+            color: "#00e0ff",
+            fillOpacity: 0.9,
+            weight: 1
           }),
-        onEachFeature: (feature, layer) => {
-          layer.bindPopup(buildSensorPopup(feature.properties));
-          layer.on("click", () => {
-            const id = feature.properties.id || feature.properties.camera_id;
-            if (!id) {
-              setStatus("Sensor ID missing; cannot load snapshot.");
-              return;
-            }
-            const snapshotUrl = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
-            scheduleSnapshot(snapshotUrl);
-            setStatus(`Loading snapshot for sensor ${id}...`);
-            console.log(`[sensor] clicked sensor ${id}`);
-          });
-        }
-      }).addTo(map);
+          onEachFeature: (feature, layer) => {
+            const p = feature.properties;
 
-      videoLayer = L.geoJSON(videoData, {
-        pointToLayer: (feature, latlng) =>
-          L.circleMarker(latlng, {
-            radius: 7,
-            color: "#3b82f6",
-            fillColor: "#3b82f6",
-            fillOpacity: 0.9
-          }),
-        onEachFeature: (feature, layer) => {
-          layer.bindPopup(buildVideoPopup(feature.properties));
-          layer.on("click", () => {
-            const url = feature.properties.stream_url || feature.properties.url || feature.properties.hls;
-            if (url) {
-              console.log(`[video] clicked stream ${url}`);
-              loadStream(url);
-              setStatus(`Loading video stream for ${feature.properties.name || "camera"}...`);
-            } else {
-              console.warn("[video] missing stream_url for feature", feature.properties);
-              setStatus("No stream URL provided for this camera.");
-            }
-          });
-        }
-      }).addTo(map);
+            const stream = p.streamUrl || "No stream available";
 
-      const group = L.featureGroup([sensorLayer, videoLayer]);
-      map.fitBounds(group.getBounds(), { padding: [20, 20] });
-    }
+            layer.bindPopup(`
+              <div class="popup">
+                <b>${p.location || p.name || "Camera"}</b><br>
+                <small>ID: ${p.id}</small><br><br>
 
-    document.addEventListener("DOMContentLoaded", loadLayers);
+                <b>Stream URL:</b><br>
+                <a href="${stream}" target="_blank">${stream}</a>
+              </div>
+            `);
+          }
+        }).addTo(map);
+      })
+      .catch(err => console.error("Failed to load GeoJSON:", err));
   </script>
 </body>
 </html>
