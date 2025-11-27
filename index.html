@@ -1,80 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Oklahoma Camera Viewer</title>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-
-  <style>
-    html, body { height: 100%; margin: 0; background: #0b0b0d; }
-    #map { height: 100%; width: 100%; }
-    video { width: 100%; height: auto; background: black; }
-  </style>
+  <link href="https://unpkg.com/video.js/dist/video-js.css" rel="stylesheet">
+  <script src="https://unpkg.com/video.js/dist/video.js"></script>
 </head>
 
-<body>
-  <div id="map"></div>
+<body style="background:black;">
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<h2 style="color:white;">OKTraffic Camera Test (No Proxy)</h2>
 
-  <!-- hls.js for m3u8 playback -->
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<video
+  id="okcam"
+  class="video-js vjs-default-skin"
+  controls
+  autoplay
+  muted
+  width="640"
+  height="360">
+</video>
 
-  <script>
-    const map = L.map("map").setView([35.5, -97.5], 7);
+<script>
+  const player = videojs("okcam");
 
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+  player.src({
+    src: "https://oktraffic.org/streams/delay-stream/7b9cc88c79ed93c1.stream/playlist.m3u8",
+    type: "application/x-mpegURL"
+  });
+</script>
 
-    fetch("https://raw.githubusercontent.com/anony121221/maps-data/refs/heads/main/Oklahoma/test.geojson")
-      .then(r => r.json())
-      .then(data => {
-        L.geoJSON(data, {
-          pointToLayer: (f, latlng) =>
-            L.circleMarker(latlng, {
-              radius: 6,
-              fillColor: "#00e0ff",
-              color: "#00e0ff",
-              fillOpacity: 0.9,
-              weight: 1
-            }),
-
-          onEachFeature: (feature, layer) => {
-            const p = feature.properties;
-            const stream = p.streamUrl;
-
-            layer.on("click", () => {
-              const popupContent = `
-                <b>${p.location || "Camera"}</b><br>
-                <video id="videoPlayer" controls autoplay></video>
-              `;
-
-              layer.bindPopup(popupContent).openPopup();
-
-              setTimeout(() => {
-                const video = document.getElementById("videoPlayer");
-
-                if (Hls.isSupported()) {
-                  const hls = new Hls({
-                    debug: false,
-                    xhrSetup: function(xhr) {
-                      xhr.withCredentials = false; // avoids cookies problems
-                    }
-                  });
-                  hls.loadSource(stream);
-                  hls.attachMedia(video);
-                } else {
-                  // Safari fallback
-                  video.src = stream;
-                }
-              }, 150);
-            });
-          }
-
-        }).addTo(map);
-      });
-  </script>
 </body>
 </html>
