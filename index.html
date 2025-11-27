@@ -218,7 +218,14 @@
 
     function toCst(value) {
       if (!value) return "—";
-      const date = new Date(value);
+      let date;
+      if (typeof value === "number") {
+        date = new Date(value);
+      } else if (typeof value === "string" && /^\d{10}$/.test(value.trim())) {
+        date = new Date(Number(value) * 1000);
+      } else {
+        date = new Date(value);
+      }
       if (isNaN(date)) return "—";
       return date.toLocaleString("en-US", { timeZone: "America/Chicago" });
     }
@@ -236,8 +243,7 @@
       snapshotImg.style.display = "block";
 
       const snapshotUrl = addCacheBuster(url);
-      const proxied = `${CORS_PROXY}${encodeURIComponent(snapshotUrl)}`;
-      console.log(`[snapshot] loading ${proxied}`);
+      console.log(`[snapshot] loading ${snapshotUrl}`);
       snapshotImg.onerror = (e) => {
         console.error("[snapshot] failed to load", e);
         setStatus("Snapshot failed to load. Check console for details.");
@@ -245,7 +251,7 @@
       snapshotImg.onload = () => {
         console.log("[snapshot] loaded successfully");
       };
-      snapshotImg.src = proxied;
+      snapshotImg.src = snapshotUrl;
       setStatus("Showing sensor snapshot (refreshes every 15 seconds).");
     }
 
@@ -324,10 +330,12 @@
       const name = props.location_name || props.name || props.location || "Sensor";
       const temperature = props.temperature_f || props.temperature || "—";
       const resolution = props.resolution || "—";
-      const updated = toCst(props.last_updated || props.last_update);
-      const pictureTime = toCst(props.picture_timestamp || props.picture_time);
-      const snapshotUrl = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
-      const thumbnail = `${CORS_PROXY}${encodeURIComponent(addCacheBuster(snapshotUrl))}`;
+      const updatedRaw = props.last_updated || props.last_update || props.last_updated_utc || props.last_update_utc || props.lastupdated || props.lastupdate;
+      const pictureRaw = props.picture_timestamp || props.picture_time || props.picture_timestamp_utc || props.picture_time_utc || props.picturetime;
+      const updated = toCst(updatedRaw);
+      const pictureTime = toCst(pictureRaw);
+      const snapshotUrl = `https://oktrafficradar.org/hrserver/${id}/latest.jpg`;
+      const thumbnail = addCacheBuster(snapshotUrl);
 
       return `
         <div>
@@ -390,7 +398,7 @@
               setStatus("Sensor ID missing; cannot load snapshot.");
               return;
             }
-            const snapshotUrl = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
+            const snapshotUrl = `https://oktrafficradar.org/hrserver/${id}/latest.jpg`;
             scheduleSnapshot(snapshotUrl);
             setStatus(`Loading snapshot for sensor ${id}...`);
             console.log(`[sensor] clicked sensor ${id}`);
