@@ -356,7 +356,7 @@
       const pictureRaw = props.picture_timestamp || props.picture_time || props.picture_timestamp_utc || props.picture_time_utc || props.picturetime || props.picture_timestamp_epoch || props.picture_timestamp_local;
       const updated = toCst(updatedRaw);
       const pictureTime = toCst(pictureRaw);
-      const snapshotBase = `https://oktrafficradar.org/hrserver/${id}/latest.jpg`;
+      const snapshotBase = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
       const thumbnail = addCacheBuster(wrapWithProxy(snapshotBase));
 
       return `
@@ -420,7 +420,7 @@
               setStatus("Sensor ID missing; cannot load snapshot.");
               return;
             }
-            const snapshotUrl = `https://oktrafficradar.org/hrserver/${id}/latest.jpg`;
+            const snapshotUrl = `http://oktrafficradar.org/hrserver/${id}/latest.jpg`;
             startSnapshotLoop(snapshotUrl);
             setStatus(`Loading snapshot for sensor ${id}...`);
             console.log(`[sensor] clicked sensor ${id}`);
